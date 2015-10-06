@@ -4,11 +4,18 @@ import ujson
 
 from flask import Blueprint
 
-BASE_URL = "/thread"
-
-thread = Blueprint("thread", __name__)
+from database import BaseORM, safe_injection
 
 
-@thread.route(BASE_URL + "/create", methods=["GET"])
+class ThreadBase(BaseORM):
+    db_table = "Thread_t"
+    base_url = "/thread"
+
+
+thread_manager = ThreadBase()
+
+thread_blueprint = Blueprint("thread_blueprint", __name__)
+
+@thread_blueprint.route(thread_manager.base_url + "/create", methods=["GET"])
 def create():
     return ujson.dumps({"success": True})
