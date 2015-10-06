@@ -1,11 +1,23 @@
 __author__ = 'vladimir'
 
-# Helper func to remove " ' etc ...
 
+# returns the same obj but with all data wrapped, recursive
 def wrap(string):
-    return string.replace("\"", "&quot;").replace("'", "&amp;")
+    if isinstance(string, list):
+        i = 0
+        while i < len(string):
+            string[i] = wrap(string[i])
+            i += 1
+        return string
+    elif isinstance(string, dict):
+        for key in string.keys():
+            string[key] = wrap(string[key])
+        return string
+    elif isinstance(string, str):
+        return "`{0}`".format(string.replace("\"", "&quot;").replace("'", "&amp;"))
 
 
+# Helper func to remove " ' and wrap in `
 def safe_injection(func):
     def wrapper(cls, jsondata):
         # print cls.__class__
