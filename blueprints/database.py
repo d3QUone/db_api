@@ -63,12 +63,5 @@ class BaseORM(object):
         else:
             return 123
 
-    @safe_injection
-    def test(self, data):
-        print data
 
 # TODO: think about migration mechanism (at least drop -> create)
-
-# x = BaseORM()
-# print x.test("test!")  # raises Exception
-# print x.test({"key": "smth with ' inj", "data": "asjo12989", "name": "Vladimir", "last_name": "Oiaod\" or 1=1"})
