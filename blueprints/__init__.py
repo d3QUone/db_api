@@ -19,11 +19,12 @@ def wrap(string):
 
 # Helper func to remove " ' and wrap in `
 def safe_injection(func):
+
     def wrapper(cls, jsondata):
-        # print cls.__class__
         if not isinstance(jsondata, dict):
             raise Exception("WTF do you send there???")
         for key in jsondata.keys():
             jsondata[key] = wrap(jsondata[key])
         return jsondata
+
     return wrapper

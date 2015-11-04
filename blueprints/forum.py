@@ -1,27 +1,28 @@
 __author__ = 'vladimir'
 
 import ujson
+from flask import Blueprint, request
 
-from flask import Blueprint
-
-from database import BaseORM, safe_injection
+from database import update_query, select_query
 
 
-class ForumBase(BaseORM):
+forum_blueprint = Blueprint("forum", __name__, url_prefix="forum")
+
+
+class ForumBase(object):
     db_table = "Forum_t"
     base_url = "/forum"
     schema = """
 CREATE TABLE 'Forum_t' (
-  'id' INT AUTO_INCREMENT,
-  'short_name' VARCHAR(100) NOT NULL,
+  'id' INT AUTO_INCREMENT UNIQUE,
+  'short_name' VARCHAR(100) PRIMARY KEY,
   'name' VARCHAR(100) NOT NULL,
   'user' VARCHAR(100) NOT NULL,
-  'isDeleted' BOOLEAN DEFAULT TRUE,
-  PRIMARY KEY('short_name')
+  'isDeleted' BOOLEAN DEFAULT FALSE
+  # PRIMARY KEY('short_name')
 );
-"""
+""".replace("'", "`")
 
-    @safe_injection
     def create(self, data):
         print "Forum create...", data  # check injections
         name = data.get("name", None)
@@ -37,11 +38,36 @@ CREATE TABLE 'Forum_t' (
             print e
             return None
 
-forum_manager = ForumBase()
+    def detail(self, data):
+        short_name = data.get("short_name", None)
+        try:
+            with self.connection.cursor() as cursor:
+                sql = """SELECT * FROM %s WHERE `short_name`=%s;"""
+                cursor.execute(sql, (self.db_table, short_name, ))
+                result = cursor.fetchone()
+                return {
+                    "status": 0,
+                    "data": result
+                }
+        except Exception as e:
+            return {
+                "status": 1,  # ?
+                "error": e
+            }
 
-forum_blueprint = Blueprint("forum", __name__)
 
-@forum_blueprint.route(forum_manager.base_url + "/create", methods=["GET"])
+
+@forum_blueprint.route("/create/", methods=["POST"])
 def create():
-    res = forum_manager.create({"key": "smth with ' inj", "data": "asjo12989", "name": "Vladimir", "last_name": "Oiaod\" or 1=1"})
+    # res = forum_manager.create()
     return ujson.dumps({"success": True})
+
+
+@forum_blueprint.route("/detail/", methods=["GET"])
+def detail():
+    params = {
+        "short_name": request.args.get("forum", None),
+        "related": request.args.get("related", []),
+    }
+    res = {}
+    return ujson.dumps(res)
