@@ -1,5 +1,5 @@
 #User.follow
-Mark one user as folowing other user
+Mark one user as following by other user
 
 ## Supported request methods 
 * POST

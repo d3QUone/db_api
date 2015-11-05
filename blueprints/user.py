@@ -16,11 +16,9 @@ user_blueprint = Blueprint("user", __name__, url_prefix="user")
 def create():
     try:
         params = request.json
-        print "*"*50
-        print "Got params: {0}".format(repr(params))
-        print "*"*50
-    except Exception as e:
-        print traceback.format_exc()
+        print "*"*50, "\nGot params: {0}\n".format(repr(params)), "*"*50
+    except Exception:
+        print "user.create exception:\n{0}".format(traceback.format_exc())
         return ujson.dumps({"code": 2, "response": "invalid json"})
     email = params.get("email", None)
     username = params.get("username", None)
@@ -28,13 +26,14 @@ def create():
     about = params.get("about", None)
     isAnonymous = int(bool(params.get("isAnonymous")))
     if email:
-        print "Selecting user..."
+        print "Creating user {0}".format(email)
         r = get_user_porfile(email)
         if not r:
-            row_id = update_query("""
-    INSERT INTO `user` (`username`, `email`, `name`, `about`, `isAnonymous`) VALUES (%s, %s, %s, %s, %s)
-    """, (username, email, name, about, isAnonymous, ))
-            # print "Row id = {0}".format(row_id)
+            row_id = update_query(
+                "INSERT INTO `user` (`username`, `email`, `name`, `about`, `isAnonymous`) VALUES (%s, %s, %s, %s, %s)",
+                (username, email, name, about, isAnonymous, ),
+                verbose=True
+            )
             user = {
                 "id": row_id,
                 "email": email,
@@ -42,11 +41,14 @@ def create():
                 "name": name,
                 "about": about,
                 "isAnonymous": isAnonymous,
+                "followers": [],
+                "following": [],
+                "subscriptions": [],
             }
-            code = 5
-        else:
-            user = r
             code = 0
+        else:
+            user = "this user already exist"
+            code = 5
     else:
         code = 3
         user = "invalid request"
@@ -60,7 +62,7 @@ def create():
 def detail():
     email = request.args.get("user", None)
     if email:
-        print "Detailing user..."
+        print "Detailing user {0}".format(email)
         r = get_user_porfile(email)
         if r:
             user = r
@@ -89,9 +91,44 @@ def update():
     name = params.get("name", None)
     about = params.get("about", None)
     if email and (name or about):
-        print "Updating user..."
-        update_query("""UPDATE `user` SET name = %s, about = %s WHERE email = %s""", (email, name, about, ), verbose=True)
+        print "Updating user {0}".format(email)
+        update_query(
+            "UPDATE `user` SET name = %s, about = %s WHERE email = %s",
+            (name, about, email, ),
+            verbose=True
+        )
         user = get_user_porfile(email)
+        if user:
+            code = 0
+        else:
+            code = 1
+            user = "Not found"
+    else:
+        code = 3
+        user = "Bad request"
+    return ujson.dumps({
+        "response": user,
+        "code": code,
+    })
+
+
+@user_blueprint.route("/follow/", methods=["POST"])
+def follow():
+    try:
+        params = request.json
+    except Exception as e:
+        print traceback.format_exc()
+        return ujson.dumps({"code": 2, "response": "invalid json"})
+    follower = params.get("follower", None)  # it's ME :)
+    followee = params.get("followee", None)
+    if follower and followee:
+        print "{0} following {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
+        update_query(
+            "INSERT INTO `follower` (`follower`, `followee`) VALUES (%s, %s)",
+            (follower, followee, ),
+            verbose=True
+        )
+        user = get_user_porfile(follower)
         if user:
             code = 0
         else:
@@ -110,15 +147,25 @@ def update():
 
 def get_user_porfile(email):
     """Return full profile + subscribers + followers + following"""
-    r = select_query("""
-SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous` FROM `user` u WHERE `email`='{0}'
-""".format(email), verbose=True)
-    if len(r) == 1:
+    r = select_query(
+        """
+SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `user` u
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+WHERE `email`=%s
+""",
+        (email, ),
+        verbose=True
+    )
+    if len(r) > 0:
+        # print r
         user = r[0]
         user["isAnonymous"] = bool(user["isAnonymous"])
         user["followers"] = []
         user["following"] = []
         user["subscriptions"] = []
+        # for line in r:
+        #     user["following"].append(line)
         return user
     else:
         return None
