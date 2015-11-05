@@ -24,7 +24,7 @@ def update_query(query, params=None, verbose=False):
     cursor.close()
     connection.close()
     if verbose:
-        print "Update Query: got row id = {0}, amount = {1}".format(row_id, amount)
+        print "Update Query: last-row-id = {0}, total {1} row(s) updated".format(row_id, amount)
     return row_id
 
 
@@ -36,5 +36,5 @@ def select_query(query, params=None, verbose=False):
     cursor.close()
     connection.close()
     if verbose:
-        print "Select Query: {0} rows were found, res = {1}".format(len(res), res)
+        print "Select Query: {0} row(s) were found, res = {1}".format(len(res), res)
     return res
