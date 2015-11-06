@@ -1,5 +1,12 @@
 __author__ = 'vladimir'
 
+c_OK = 0
+c_NOT_FOUND = 1
+c_BAD_REQUEST = 2
+c_INVALID_REQUEST_PARAMS = 3
+c_UNKNOWN_ERROR = 4
+c_USER_EXISTS = 5
+
 
 # returns the same obj but with all data wrapped, recursive
 def wrap(string):
@@ -28,3 +35,11 @@ def safe_injection(func):
         return jsondata
 
     return wrapper
+
+
+def get_int_or_none(num):
+    try:
+        num = int(num)
+    except Exception:
+        num = None
+    return num

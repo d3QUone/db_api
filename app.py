@@ -47,9 +47,11 @@ def truncate_db():
 
 def debug_printout():
     res = ""
+    amount = 0
     for i in app.url_map.iter_rules():
-        res += "  {0} | Methods = {1}\n".format(i, ", ".join(i.methods))
-    print "Current routes:\n\n{0}\n".format(res), "-"*50
+        res += " {0} [{1}]\n".format(i, ", ".join(i.methods))
+        amount += 1
+    print "Total routes {0}:\n\n{1}\n".format(amount, res), "-"*50
 
 
 if __name__ == "__main__":
