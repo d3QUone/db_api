@@ -1,7 +1,6 @@
 __author__ = 'vladimir'
 
 import traceback
-import datetime
 
 import ujson
 from flask import Blueprint, request
@@ -67,11 +66,7 @@ def create():
 @post_blueprint.route("/details/", methods=["GET"])
 def detail():
     post_id = get_int_or_none(request.args.get("post", None))
-    try:
-        related = request.values.get_list("related")
-        print "Related == {0}".format(related)
-    except:
-        related = []
+    related = request.values.getlist("related")
     if post_id:
         # simple query
         post = select_query(
@@ -81,7 +76,7 @@ def detail():
         )
         if len(post) >= 1:
             post = post[0]
-            post["date"] = post["date"].strftime("%Y-%m-%d %H-%M-%S")
+            post["date"] = get_date(post["date"])
             code = c_OK
         else:
             post = "Post not found"

@@ -1,7 +1,6 @@
 __author__ = 'vladimir'
 
 import traceback
-import datetime
 
 import ujson
 from flask import Blueprint, request
@@ -27,7 +26,7 @@ def create():
     title = params.get("title", None)
     isClosed = int(bool(params.get("isClosed")))
     user_email = params.get("user", None)
-    date = params.get("date", None)  # Format: 'YYYY-MM-DD hh-mm-ss'
+    date = params.get("date", None)
     message = params.get("message", None)
     slug = params.get("slug", None)
     # optional
@@ -62,19 +61,15 @@ def create():
 @thread_blueprint.route("/details/", methods=["GET"])
 def details():
     th_id = get_int_or_none(request.args.get("thread", None))
-    related = request.args.get("related", None)
+    related = request.values.getlist("related")
     if th_id and th_id > 0:
-        # simple query
-
-        # TODO: display user id correct
-        if related and related == "forum":
+        if "forum" in related:
+            # t.`forum`, t.`title`, t.`isClosed`, t.`user`, t.`date`, t.`message`, t.`slug`, t.`isDeleted`
             thread = select_query(
-"""SELECT * FROM `thread` t
-LEFT JOIN `forum` f ON f.`short_name` = t.`forum` WHERE t.`id` = %s""",
+                "SELECT * FROM `thread` t LEFT JOIN `forum` f ON f.`short_name` = t.`forum` WHERE t.`id` = %s",
                 (th_id, ),
                 verbose=False
             )
-            print "*"*50, "\nThread.Details got params: {0}\n".format(repr(thread)), "*"*50
         else:
             #  t.`isDeleted` = FALSE AND t.`isClosed` = FALSE AND
             thread = select_query(
@@ -82,21 +77,34 @@ LEFT JOIN `forum` f ON f.`short_name` = t.`forum` WHERE t.`id` = %s""",
                 (th_id, ),
                 verbose=False
             )
-        print thread
         if len(thread) > 0:
+            code = c_OK
             thrd = thread[0]
-            thrd["date"] = thrd["date"].strftime("%Y-%m-%d %H-%M-%S")
-            if related and related == "user":
+            thrd["date"] = get_date(thrd["date"])
+            if "forum" in related:
+                thrd["forum"] = {
+                    "id": thrd["f.id"],
+                    "user": thrd["f.user"],
+                    "name": thrd["name"],
+                    "short_name": thrd["short_name"],
+                }
+                del thrd["f.id"]
+                del thrd["f.user"]
+                del thrd["name"]
+                del thrd["short_name"]
+            if "user" in related:
                 user = get_user_profile(thrd["user"])
                 if user:
                     thrd["user"] = user
-            code = 0
+                else:
+                    code = c_NOT_FOUND
+
         else:
             thrd = "Thread not found"
-            code = 1
+            code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": thrd,
         "code": code,
@@ -109,7 +117,7 @@ def subscribe():
         params = request.json
     except Exception:
         print "thread.close params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     email = params.get("user", None)
     if th_id and th_id > 0 and email:
@@ -151,7 +159,7 @@ def unsubscribe():
         params = request.json
     except Exception:
         print "thread.close params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     email = params.get("user", None)
     if th_id and th_id > 0 and email:
@@ -188,7 +196,7 @@ def close():
         params = request.json
     except Exception:
         print "thread.close params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     if th_id:
         update_query(
@@ -197,10 +205,10 @@ def close():
             verbose=False
         )
         thrd = {"thread": th_id}
-        code = 0
+        code = c_OK
     else:
         thrd = "Invalid params"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": thrd,
         "code": code,
@@ -213,7 +221,7 @@ def open():
         params = request.json
     except Exception:
         print "thread.open params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     if th_id:
         update_query(
@@ -222,10 +230,10 @@ def open():
             verbose=False
         )
         thrd = {"thread": th_id}
-        code = 0
+        code = c_OK
     else:
         thrd = "Invalid params"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": thrd,
         "code": code,
@@ -238,7 +246,7 @@ def remove():
         params = request.json
     except Exception:
         print "thread.open params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     if th_id:
         update_query(
@@ -247,10 +255,10 @@ def remove():
             verbose=False
         )
         thrd = {"thread": th_id}
-        code = 0
+        code = c_OK
     else:
         thrd = "Invalid params"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": thrd,
         "code": code,
@@ -263,7 +271,7 @@ def restore():
         params = request.json
     except Exception:
         print "thread.open params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     if th_id and th_id >= 0:
         r = update_query(
@@ -273,10 +281,10 @@ def restore():
         )
         print "------- th_id={0}".format(r)
         thrd = {"thread": th_id}
-        code = 0
+        code = c_OK
     else:
         thrd = "Invalid params"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": thrd,
         "code": code,

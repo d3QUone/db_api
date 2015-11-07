@@ -5,7 +5,8 @@ import traceback
 import ujson
 from flask import Blueprint, request
 
-from database import update_query, select_query
+from . import *
+from .database import update_query, select_query
 from .user import get_user_profile
 
 
@@ -16,10 +17,9 @@ forum_blueprint = Blueprint("forum", __name__, url_prefix="forum")
 def create():
     try:
         params = request.json
-        # print "*"*50, "\nGot params: {0}\n".format(repr(params)), "*"*50
     except Exception:
         print "forum.create params exception:\n{0}".format(traceback.format_exc())
-        return ujson.dumps({"code": 2, "response": "invalid json"})
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     name = params.get("name", None)
     short_name = params.get("short_name", None)
     email = params.get("user", None)
@@ -38,13 +38,13 @@ def create():
                 "short_name": short_name,
                 "user": user,
             }
-            code = 0
+            code = c_OK
         else:
             forum = "no such user"
-            code = 1
+            code = c_NOT_FOUND
     else:
         forum = "invalid request"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": forum,
         "code": code,
@@ -96,11 +96,11 @@ WHERE f.`short_name` = %s""",
                 verbose=False
             )
             forum["short_name"] = short_name
-        code = 0
+        code = c_OK
         print "="*50, "\nFORUM DETAILS: {0}\n".format(repr(forum)), "="*50
     else:
         forum = "invalid request"
-        code = 3
+        code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
         "response": forum,
         "code": code,

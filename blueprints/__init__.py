@@ -1,5 +1,8 @@
 __author__ = 'vladimir'
 
+import datetime
+
+
 c_OK = 0
 c_NOT_FOUND = 1
 c_BAD_REQUEST = 2
@@ -43,3 +46,7 @@ def get_int_or_none(num):
     except Exception:
         num = None
     return num
+
+
+def get_date(d):
+    return d.strftime("%Y-%m-%d %H:%M:%S")
