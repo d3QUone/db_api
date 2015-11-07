@@ -188,6 +188,54 @@ def unsubscribe():
     })
 
 
+@thread_blueprint.route("/vote/", methods=["POST"])
+def vote_thread():
+    try:
+        params = request.json
+    except Exception:
+        print "thread.vote params exception:\n{0}".format(traceback.format_exc())
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
+    th_id = get_int_or_none(params.get("thread", None))
+    vote = get_int_or_none(params.get("vote", None))
+    if th_id and vote:
+        thread = select_query(
+            "SELECT * FROM `thread` t WHERE t.`id` = %s",
+            (th_id, ),
+            verbose=False
+        )
+        if len(thread) > 0:
+            thrd = thread[0]
+            if vote == 1:
+                thrd["likes"] += 1
+                update_query(
+                    "UPDATE `thread` t SET t.`likes` = %s WHERE t.`id` = %s",
+                    (thrd["likes"], th_id, ),
+                    verbose=False
+                )
+                code = c_OK
+            elif vote == -1:
+                thrd["dislikes"] += 1
+                update_query(
+                    "UPDATE `thread` t SET t.`dislikes` = %s WHERE t.`id` = %s",
+                    (thrd["dislikes"], th_id, ),
+                    verbose=False
+                )
+                code = c_OK
+            else:
+                thrd = "Invalid params passed"
+                code = c_INVALID_REQUEST_PARAMS
+        else:
+            thrd = "Requested thread not found"
+            code = c_NOT_FOUND
+    else:
+        thrd = "Invalid params passed"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": thrd,
+        "code": code,
+    })
+
+
 # Similar methods goes bellow
 
 @thread_blueprint.route("/close/", methods=["POST"])
