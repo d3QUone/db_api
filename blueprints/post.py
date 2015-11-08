@@ -216,15 +216,73 @@ def detail():
     post_id = get_int_or_none(request.args.get("post", None))
     related = request.values.getlist("related")
     if post_id and post_id > 0:
-        # simple query
-        post_query = select_query(
-            "SELECT * FROM `post` p WHERE p.`id` = %s",  # AND p.`isDeleted` = FALSE
-            (post_id, ),
-            verbose=False
-        )
+        SQL = "SELECT * FROM `post` p"
+        if "user" in related:
+            SQL += " JOIN `user` u ON p.`user` = u.`email`"
+        if "thread" in related:
+            SQL += " JOIN `thread` t ON p.`thread` = t.`id`"
+        if "forum" in related:
+            SQL += " JOIN `forum` f ON p.`forum` = f.`short_name`"
+        SQL += " WHERE p.`id` = %s"
+        post_query = select_query(SQL, (post_id, ), verbose=False)
         if len(post_query) == 1:
             post = post_query[0]
             post["date"] = get_date(post["date"])
+            if "user" in related:
+                post["user"] = {
+                    "id": post["u.id"],
+                    "email": post["email"],
+                    "username": post["username"],
+                    "name": post["name"],
+                    "isAnonymous": post["isAnonymous"],
+                    "about": post["about"],
+                }
+                del post["u.id"]
+                del post["email"]
+                del post["username"]
+                del post["name"]
+                del post["isAnonymous"]
+                del post["about"]
+            if "thread" in related:
+                post["thread"] = {
+                    "id": post["t.id"],
+                    "title": post["title"],
+                    "date": get_date(post["t.date"]),
+                    "message": post["t.message"],
+                    "forum": post["t.forum"],
+                    "user": post["t.user"],
+                    "isDeleted": post["t.isDeleted"],
+                    "isClosed": post["isClosed"],
+                    "slug": post["slug"],
+                    "likes": post["t.likes"],
+                    "dislikes": post["t.dislikes"],
+                    "points": post["t.points"],
+                    "posts": post["posts"],
+                }
+                del post["t.id"]
+                del post["title"]
+                del post["t.date"]
+                del post["t.message"]
+                del post["t.forum"]
+                del post["t.user"]
+                del post["t.isDeleted"]
+                del post["isClosed"]
+                del post["slug"]
+                del post["t.likes"]
+                del post["t.dislikes"]
+                del post["t.points"]
+                del post["posts"]
+            if "forum" in related:
+                post["forum"] = {
+                    "id": post["f.id"],
+                    "user": post["f.user"],
+                    "short_name": post["short_name"],
+                    "name": post["f.name"],
+                }
+                del post["f.id"]
+                del post["f.user"]
+                del post["short_name"]
+                del post["f.name"]
             code = c_OK
         else:
             post = "Post not found"
