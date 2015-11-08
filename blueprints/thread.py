@@ -58,6 +58,44 @@ def create():
     })
 
 
+@thread_blueprint.route("/update/", methods=["POST"])
+def update():
+    try:
+        params = request.json
+    except Exception:
+        print "thread.update params exception:\n{0}".format(traceback.format_exc())
+        return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
+    th_id = get_int_or_none(params.get("thread", None))
+    message = params.get("message", None)
+    slug = params.get("slug", None)
+    if th_id and th_id > 0 and message and slug:
+        thread_query = select_query(
+            "SELECT * FROM `thread` t WHERE t.`id` = %s",
+            (th_id, ),
+            verbose=False
+        )
+        if len(thread_query) == 1:
+            update_query(
+                "UPDATE `thread` SET `slug` = %s, `message` = %s WHERE `id` = %s",
+                (slug, message, th_id),
+                verbose=False
+            )
+            thrd = thread_query[0]
+            thrd["slug"] = slug
+            thrd["message"] = message
+            code = c_OK
+        else:
+            thrd = "Thread not found"
+            code = c_NOT_FOUND
+    else:
+        thrd = "Invalid params"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": thrd,
+        "code": code,
+    })
+
+
 @thread_blueprint.route("/details/", methods=["GET"])
 def details():
     th_id = get_int_or_none(request.args.get("thread", None))
@@ -101,6 +139,43 @@ def details():
 
         else:
             thrd = "Thread not found"
+            code = c_NOT_FOUND
+    else:
+        thrd = "Invalid params"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": thrd,
+        "code": code,
+    })
+
+
+@thread_blueprint.route("/list/", methods=["GET"])
+def list_threads():
+    email = request.args.get("user", None)
+    forum = request.args.get("forum", None)
+    # optional
+    since = request.args.get("since", None)
+    limit = get_int_or_none(request.args.get("limit", None))
+    order = request.args.get("order", "desc")
+    if (email or forum) and order in ("desc", "asc"):
+        if email:
+            SQL = "SELECT * FROM `thread` t WHERE t.`user` = %s"
+            params = (email, )
+        else:
+            SQL = "SELECT * FROM `thread` t WHERE t.`forum` = %s"
+            params = (forum, )
+        
+        if since:
+            SQL += " AND t.`date` >= %s"
+            params += (since, )
+        SQL += " ORDER BY t.`date` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+        thrd = select_query(SQL, params, verbose=False)
+        code = c_OK
+        if len(thrd) == 0:
+            thrd = "Nothing found"
             code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
