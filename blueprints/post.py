@@ -127,13 +127,13 @@ def remove():
     post_id = get_int_or_none(params.get("post", None))
     if post_id and post_id > 0:
         post_query = select_query(
-            "SELECT p.`thread` FROM `post` p WHERE p`isDeleted` = FALSE AND p.`id` = %s",
+            "SELECT p.`thread` FROM `post` p WHERE p.`isDeleted` = 0 AND p.`id` = %s",
             (post_id, ),
             verbose=False
         )
         if len(post_query) == 1:
             update_query(
-                "UPDATE `post` SET `isDeleted` = 0 WHERE `id` = %s",
+                "UPDATE `post` SET `isDeleted` = 1 WHERE `id` = %s",
                 (post_id, ),
                 verbose=False
             )
@@ -174,7 +174,7 @@ def restore():
     post_id = get_int_or_none(params.get("post", None))
     if post_id and post_id > 0:
         post_query = select_query(
-            "SELECT p.`thread` FROM `post` p WHERE p`isDeleted` = 1 AND p.`id` = %s",
+            "SELECT p.`thread` FROM `post` p WHERE p.`isDeleted` = 1 AND p.`id` = %s",
             (post_id, ),
             verbose=False
         )
@@ -276,6 +276,79 @@ def vote_post():
                 code = c_INVALID_REQUEST_PARAMS
         else:
             post = "Requested post not found"
+            code = c_NOT_FOUND
+    else:
+        post = "Invalid params passed"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": post,
+        "code": code,
+    })
+
+
+@post_blueprint.route("/list/", methods=["GET"])
+def list_posts():
+    forum = request.args.get("forum", None)
+    thread = get_int_or_none(request.args.get("thread", None))
+    # optional
+    since = request.args.get("since", None)
+    limit = get_int_or_none(request.args.get("limit", None))
+    order = request.args.get("order", "desc")
+    if forum and order in ("asc", "desc"):
+        # ensure that forum exist
+        forum_query = select_query(
+            "SELECT f.`id` FROM `forum` f WHERE f.`short_name` = %s",
+            (forum, ),
+            verbose=False
+        )
+        if len(forum_query) == 1:
+            SQL = "SELECT * FROM `post` p WHERE p.`forum` = %s"
+            params = (forum, )
+            if since:
+                SQL += " AND p.`date` >= %s"
+                params += (since, )
+            SQL += " ORDER BY p.`date` {0}".format(order.upper())
+            if limit and limit > 0:
+                SQL += " LIMIT %s"
+                params += (limit, )
+
+            post_query = select_query(SQL, params, verbose=False)
+            if len(post_query) > 0:
+                post = post_query
+                code = c_OK
+            else:
+                post = "No posts match this request"
+                code = c_NOT_FOUND
+        else:
+            post = "No such forum"
+            code = c_NOT_FOUND
+    elif thread and order in ("asc", "desc"):
+        # ensure that thread exist
+        thread_query = select_query(
+            "SELECT t.`slug` FROM `thread` t WHERE t.`id` = %s",
+            (thread, ),
+            verbose=False
+        )
+        if len(thread_query) == 1:
+            SQL = "SELECT * FROM `post` p WHERE p.`thread` = %s"
+            params = (thread, )
+            if since:
+                SQL += " AND p.`date` >= %s"
+                params += (since, )
+            SQL += " ORDER BY p.`date` {0}".format(order.upper())
+            if limit and limit > 0:
+                SQL += " LIMIT %s"
+                params += (limit, )
+
+            post_query = select_query(SQL, params, verbose=False)
+            if len(post_query) > 0:
+                post = post_query
+                code = c_OK
+            else:
+                post = "No posts match this request"
+                code = c_NOT_FOUND
+        else:
+            post = "No such thread"
             code = c_NOT_FOUND
     else:
         post = "Invalid params passed"

@@ -182,7 +182,7 @@ JOIN `follower` flwe ON flwe.`followee` = flwr.`follower`
 WHERE flwe.`followee`=%s
 """,
             (email, ),
-            verbose=True
+            verbose=False
         )
         user = prepare_profiles(r)
         code = c_OK
