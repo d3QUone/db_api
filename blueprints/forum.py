@@ -7,7 +7,7 @@ from flask import Blueprint, request
 
 from . import *
 from .database import update_query, select_query
-from .user import get_user_profile
+from .user import get_user_profile, prepare_profiles
 
 
 forum_blueprint = Blueprint("forum", __name__, url_prefix="forum")
@@ -54,9 +54,9 @@ def create():
 @forum_blueprint.route("/details/", methods=["GET"])
 def detail():
     short_name = request.args.get("forum", None)
-    related = request.args.get("related", None)
+    related = request.values.getlist("related")
     if short_name:
-        if related and related == "user":
+        if "user" in related:
             forum_query = select_query(
                 """
 SELECT f.`id`, f.`name`, u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `forum` f
@@ -65,7 +65,7 @@ LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
 WHERE f.`short_name` = %s""",
                 (short_name, ),
-                verbose=True
+                verbose=False
             )
             forum_buf = forum_query[0]
             forum = {
@@ -90,14 +90,52 @@ WHERE f.`short_name` = %s""",
                 if "follower" in line and line["follower"]:
                     forum["user"]["following"].append(line["follower"])
         else:
-            forum = select_query(
-                """SELECT f.`id`, f.`name` FROM `forum` f WHERE f.`short_name` = %s""",
+            forum_query = select_query(
+                "SELECT * FROM `forum` f WHERE f.`short_name` = %s",
                 (short_name, ),
                 verbose=False
             )
-            forum["short_name"] = short_name
+            forum = forum_query[0]
         code = c_OK
-        print "="*50, "\nFORUM DETAILS: {0}\n".format(repr(forum)), "="*50
+    else:
+        forum = "invalid request"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": forum,
+        "code": code,
+    })
+
+
+@forum_blueprint.route("/listUsers/", methods=["GET"])
+def list_users():
+    short_name = request.args.get("forum", None)
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since_id = get_int_or_none(request.args.get("since_id", None))  # entities in interval [since_id, max_id]
+    order = request.args.get("order", "desc")
+    if short_name and order in ("asc", "desc"):
+        SQL = """
+SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `user` u
+LEFT JOIN `post` p ON p.`user` = u.`email`
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+WHERE p.`forum` = %s"""
+        params = (short_name, )
+        if since_id:
+            SQL += " AND u.`id` >= %s"
+            params += (since_id, )
+        SQL += " ORDER BY u.`name` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+
+        u_query = select_query(SQL, params, verbose=False)
+        if len(u_query) > 0:
+            forum = prepare_profiles(u_query)
+            code = c_OK
+        else:
+            forum = "Nothing found"
+            code = c_NOT_FOUND
     else:
         forum = "invalid request"
         code = c_INVALID_REQUEST_PARAMS

@@ -186,6 +186,49 @@ def list_threads():
     })
 
 
+@thread_blueprint.route("/listPosts/", methods=["GET"])
+def list_posts():
+    th_id = get_int_or_none(request.args.get("thread", None))
+    # optional
+    since = request.args.get("since", None)
+    limit = get_int_or_none(request.args.get("limit", None))
+    sort = request.args.get("sort", "flat")
+    order = request.args.get("order", "desc")
+    if th_id and th_id > 0 and sort in ("flat", "tree", "parent_tree") and order in ("asc", "desc"):
+        if sort == "flat":
+            SQL = "SELECT * FROM `post` p WHERE p.`thread` = %s"
+            params = (th_id, )
+            if since:
+                SQL += " AND p.`date` >= %s"
+                params += (since, )
+            SQL += " ORDER BY p.`date` {0}".format(order.upper())
+            if limit and limit > 0:
+                SQL += " LIMIT %s"
+                params += (limit, )
+        elif sort == "tree":
+            # TODO: tree sort
+            SQL = None
+            params = None
+
+        else:
+            # TODO: parent tree sort
+            SQL = None
+            params = None
+
+        thrd = select_query(SQL, params, verbose=False)
+        code = c_OK
+        if len(thrd) == 0:
+            thrd = "Nothing found"
+            code = c_NOT_FOUND
+    else:
+        thrd = "Invalid params"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": thrd,
+        "code": code,
+    })
+
+
 @thread_blueprint.route("/subscribe/", methods=["POST"])
 def subscribe():
     try:
