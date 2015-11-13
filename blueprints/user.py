@@ -1,5 +1,6 @@
 __author__ = 'vladimir'
 
+from collections import OrderedDict
 import traceback
 
 import ujson
@@ -199,8 +200,10 @@ WHERE flwe.`followee`=%s
 
 def prepare_profiles(query):
     """Render bunch of profiles from queries result"""
-    buf = {}
-    for user in query:
+    buf = OrderedDict()
+    i = 0
+    while i < len(query):
+        user = query[i]
         if user["email"] not in buf:
             buf[user["email"]] = {
                 "id": user["id"],
@@ -218,15 +221,13 @@ def prepare_profiles(query):
                 buf[user["email"]]["followers"].append(user["followee"])
             if "follower" in user and user["follower"]:
                 buf[user["email"]]["following"].append(user["follower"])
-    # render list
+        i += 1
+    # render list saving the order
     res = []
     append = res.append
     for k in buf:
-        b = {"email": k}
-        b.update(buf[k])
-        # TODO: check what is faster
-        # b = buf[k]
-        # b.update({"email": k})
+        b = buf[k]
+        b.update({"email": k})
         append(b)
     return res
 

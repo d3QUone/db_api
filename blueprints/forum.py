@@ -114,8 +114,8 @@ def list_users():
     since_id = get_int_or_none(request.args.get("since_id", None))  # entities in interval [since_id, max_id]
     order = request.args.get("order", "desc")
     if short_name and order in ("asc", "desc"):
-        SQL = """
-SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `user` u
+        SQL = """SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
+flwr.`followee`, flwe.`follower` FROM `user` u
 LEFT JOIN `post` p ON p.`user` = u.`email`
 LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
