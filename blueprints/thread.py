@@ -31,7 +31,7 @@ def create():
     slug = params.get("slug", None)
     # optional
     isDeleted = int(bool(params.get("isDeleted")))
-    if forum_short_name and title and isClosed and user_email and date and message and slug:
+    if forum_short_name and title and user_email and date and message and slug:
         th_id = update_query(
             "INSERT INTO `thread` (`forum`, `title`, `isClosed`, `user`, `date`, `message`, `slug`, `isDeleted`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (forum_short_name, title, isClosed, user_email, date, message, slug, isDeleted),
@@ -87,6 +87,9 @@ def update():
         else:
             thrd = "Thread not found"
             code = c_NOT_FOUND
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -100,7 +103,7 @@ def update():
 def details():
     th_id = get_int_or_none(request.args.get("thread", None))
     related = request.values.getlist("related")
-    if th_id and th_id > 0:
+    if th_id and th_id > 0 and check_list(related, ("user", "forum")):
         if "forum" in related:
             # t.`forum`, t.`title`, t.`isClosed`, t.`user`, t.`date`, t.`message`, t.`slug`, t.`isDeleted`
             thread = select_query(
@@ -136,10 +139,12 @@ def details():
                     thrd["user"] = user
                 else:
                     code = c_NOT_FOUND
-
         else:
             thrd = "Thread not found"
             code = c_NOT_FOUND
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -215,11 +220,17 @@ def list_posts():
             SQL = None
             params = None
 
-        thrd = select_query(SQL, params, verbose=False)
+        thrd = select_query(SQL, params, verbose=False)  # posts query
         code = c_OK
         if len(thrd) == 0:
             thrd = "Nothing found"
             code = c_NOT_FOUND
+        else:
+            for item in thrd:
+                item["date"] = get_date(item["date"])
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -251,7 +262,7 @@ def subscribe():
                 (email, th_id),
                 verbose=True
             )
-            thread = {
+            thrd = {
                 "user": email,
                 "thread": th_id,
             }
@@ -260,13 +271,16 @@ def subscribe():
         #     thread = "Already created"
         #     code = ?
         else:
-            thread = "No such user"
+            thrd = "No such user"
             code = c_INVALID_REQUEST_PARAMS
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
-        thread = "Invalid params passed"
+        thrd = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
-        "response": thread,
+        "response": thrd,
         "code": code,
     })
 
@@ -289,19 +303,22 @@ def unsubscribe():
                 (email, th_id),
                 verbose=True
             )
-            thread = {
+            thrd = {
                 "user": email,
                 "thread": th_id,
             }
             code = c_OK
         else:
-            thread = "No such user"
+            thrd = "No such user"
             code = c_INVALID_REQUEST_PARAMS
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
-        thread = "Invalid params passed"
+        thrd = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS
     return ujson.dumps({
-        "response": thread,
+        "response": thrd,
         "code": code,
     })
 
@@ -315,7 +332,7 @@ def vote_thread():
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     vote = get_int_or_none(params.get("vote", None))
-    if th_id and vote:
+    if th_id and th_id > 0 and vote:
         thread = select_query(
             "SELECT * FROM `thread` t WHERE t.`id` = %s",
             (th_id, ),
@@ -345,6 +362,9 @@ def vote_thread():
         else:
             thrd = "Requested thread not found"
             code = c_NOT_FOUND
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS
@@ -364,7 +384,7 @@ def close():
         print "thread.close params exception:\n{0}".format(traceback.format_exc())
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
-    if th_id:
+    if th_id and th_id > 0:
         update_query(
             "UPDATE `thread` t SET t.`isClosed` = TRUE WHERE t.`id` = %s",
             (th_id, ),
@@ -372,6 +392,9 @@ def close():
         )
         thrd = {"thread": th_id}
         code = c_OK
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -389,7 +412,7 @@ def open():
         print "thread.open params exception:\n{0}".format(traceback.format_exc())
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
-    if th_id:
+    if th_id and th_id > 0:
         update_query(
             "UPDATE `thread` t SET t.`isClosed` = FALSE WHERE t.`id` = %s",
             (th_id, ),
@@ -397,6 +420,9 @@ def open():
         )
         thrd = {"thread": th_id}
         code = c_OK
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -414,7 +440,7 @@ def remove():
         print "thread.open params exception:\n{0}".format(traceback.format_exc())
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
-    if th_id:
+    if th_id and th_id > 0:
         update_query(
             "UPDATE `thread` t SET t.`isDeleted` = TRUE WHERE t.`id` = %s",
             (th_id, ),
@@ -422,6 +448,9 @@ def remove():
         )
         thrd = {"thread": th_id}
         code = c_OK
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -445,9 +474,11 @@ def restore():
             (th_id, ),
             verbose=False
         )
-        print "------- th_id={0}".format(r)
         thrd = {"thread": th_id}
         code = c_OK
+    elif th_id and th_id < 0:
+        thrd = "Not found"
+        code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS

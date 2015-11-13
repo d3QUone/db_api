@@ -108,6 +108,9 @@ def update():
         else:
             post = "This post doesn't exist"
             code = c_NOT_FOUND
+    elif post_id and post_id < 0:
+        post = "Not found"
+        code = c_NOT_FOUND
     else:
         post = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -155,6 +158,9 @@ def remove():
         else:
             post = "This post doesn't exist"
             code = c_NOT_FOUND
+    elif post_id and post_id < 0:
+        post = "Not found"
+        code = c_NOT_FOUND
     else:
         post = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -202,6 +208,9 @@ def restore():
         else:
             post = "This post doesn't exist"
             code = c_NOT_FOUND
+    elif post_id and post_id < 0:
+        post = "Not found"
+        code = c_NOT_FOUND
     else:
         post = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -215,7 +224,7 @@ def restore():
 def detail():
     post_id = get_int_or_none(request.args.get("post", None))
     related = request.values.getlist("related")
-    if post_id and post_id > 0:
+    if post_id and post_id > 0 and check_list(related, ("user", "thread", "forum")):
         SQL = "SELECT * FROM `post` p"
         if "user" in related:
             SQL += " JOIN `user` u ON p.`user` = u.`email`"
@@ -287,6 +296,9 @@ def detail():
         else:
             post = "Post not found"
             code = c_NOT_FOUND
+    elif post_id and post_id < 0:
+        post = "Not found"
+        code = c_NOT_FOUND
     else:
         post = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -315,17 +327,19 @@ def vote_post():
             post = post_query[0]
             if vote == 1:
                 post["likes"] += 1
+                post["points"] = post["likes"] - post["dislikes"]
                 update_query(
-                    "UPDATE `post` p SET p.`likes` = %s WHERE p.`id` = %s",
-                    (post["likes"], post_id, ),
+                    "UPDATE `post` p SET p.`likes` = %s, p.`points` = %s WHERE p.`id` = %s",
+                    (post["likes"], post["points"], post_id),
                     verbose=False
                 )
                 code = c_OK
             elif vote == -1:
                 post["dislikes"] += 1
+                post["points"] = post["likes"] - post["dislikes"]
                 update_query(
-                    "UPDATE `post` p SET p.`dislikes` = %s WHERE p.`id` = %s",
-                    (post["dislikes"], post_id, ),
+                    "UPDATE `post` p SET p.`dislikes` = %s, p.`points` = %s WHERE p.`id` = %s",
+                    (post["dislikes"], post["points"], post_id),
                     verbose=False
                 )
                 code = c_OK
@@ -335,6 +349,9 @@ def vote_post():
         else:
             post = "Requested post not found"
             code = c_NOT_FOUND
+    elif post_id and post_id < 0:
+        post = "Not found"
+        code = c_NOT_FOUND
     else:
         post = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS
@@ -372,6 +389,8 @@ def list_posts():
 
             post_query = select_query(SQL, params, verbose=False)
             if len(post_query) > 0:
+                for item in post_query:
+                    item["date"] = get_date(item["date"])
                 post = post_query
                 code = c_OK
             else:
@@ -400,6 +419,8 @@ def list_posts():
 
             post_query = select_query(SQL, params, verbose=False)
             if len(post_query) > 0:
+                for item in post_query:
+                    item["date"] = get_date(item["date"])
                 post = post_query
                 code = c_OK
             else:

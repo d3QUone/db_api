@@ -21,3 +21,10 @@ def get_int_or_none(num):
 
 def get_date(d):
     return d.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def check_list(inp, av_params):
+    for item in inp:
+        if item not in av_params:
+            return False
+    return True

@@ -55,7 +55,7 @@ def create():
 def detail():
     short_name = request.args.get("forum", None)
     related = request.values.getlist("related")
-    if short_name:
+    if short_name and check_list(related, ("user", )):
         if "user" in related:
             forum_query = select_query(
                 """
