@@ -216,11 +216,12 @@ def prepare_profiles(query):
                 "following": [],
                 "subscriptions": [],
             }
-        else:
-            if "followee" in user and user["followee"]:
-                buf[user["email"]]["followers"].append(user["followee"])
-            if "follower" in user and user["follower"]:
-                buf[user["email"]]["following"].append(user["follower"])
+        if "followee" in user and user["followee"]:
+            buf[user["email"]]["followers"].append(user["followee"])
+        if "follower" in user and user["follower"]:
+            buf[user["email"]]["following"].append(user["follower"])
+        if "thread" in user and user["thread"]:
+            buf[user["email"]]["subscriptions"].append(user["thread"])
         i += 1
     # render list saving the order
     res = []
@@ -236,9 +237,10 @@ def get_user_profile(email):
     """Return full profile + subscribers + followers + following"""
     r = select_query(
         """
-SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `user` u
+SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
 LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`
 WHERE `email`=%s
 """,
         (email, ),
@@ -255,8 +257,11 @@ WHERE `email`=%s
                 user["followers"].append(line["followee"])
             if "follower" in line and line["follower"]:
                 user["following"].append(line["follower"])
+            if "thread" in line and line["thread"]:
+                user["subscriptions"].append(line["thread"])
         del user["followee"]
         del user["follower"]
+        del user["thread"]
         # print "*"*50, "\nUserProfile: {0}\n".format(repr(user)), "*"*50
         return user
     else:

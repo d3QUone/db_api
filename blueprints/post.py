@@ -361,6 +361,7 @@ def vote_post():
     })
 
 
+# TODO: fix querying by date (misterious bug when nothing were found)
 @post_blueprint.route("/list/", methods=["GET"])
 def list_posts():
     forum = request.args.get("forum", None)
@@ -369,46 +370,22 @@ def list_posts():
     since = request.args.get("since", None)
     limit = get_int_or_none(request.args.get("limit", None))
     order = request.args.get("order", "desc")
-    if forum and order in ("asc", "desc"):
-        # ensure that forum exist
-        forum_query = select_query(
-            "SELECT f.`id` FROM `forum` f WHERE f.`short_name` = %s",
-            (forum, ),
-            verbose=False
-        )
-        if len(forum_query) == 1:
-            SQL = "SELECT * FROM `post` p WHERE p.`forum` = %s"
+    if (forum or thread) and order in ("asc", "desc"):
+        post = "No posts match this request"
+        code = c_NOT_FOUND
+        # ensure that thread or forum exist
+        if forum:
+            SQL = "SELECT f.`id` FROM `forum` f WHERE f.`short_name` = %s"
             params = (forum, )
-            if since:
-                SQL += " AND p.`date` >= %s"
-                params += (since, )
-            SQL += " ORDER BY p.`date` {0}".format(order.upper())
-            if limit and limit > 0:
-                SQL += " LIMIT %s"
-                params += (limit, )
-
-            post_query = select_query(SQL, params, verbose=False)
-            if len(post_query) > 0:
-                for item in post_query:
-                    item["date"] = get_date(item["date"])
-                post = post_query
-                code = c_OK
-            else:
-                post = "No posts match this request"
-                code = c_NOT_FOUND
         else:
-            post = "No such forum"
-            code = c_NOT_FOUND
-    elif thread and order in ("asc", "desc"):
-        # ensure that thread exist
-        thread_query = select_query(
-            "SELECT t.`slug` FROM `thread` t WHERE t.`id` = %s",
-            (thread, ),
-            verbose=False
-        )
-        if len(thread_query) == 1:
-            SQL = "SELECT * FROM `post` p WHERE p.`thread` = %s"
+            SQL = "SELECT t.`slug` FROM `thread` t WHERE t.`id` = %s"
             params = (thread, )
+        pre_query = select_query(SQL, params, verbose=False)
+        if len(pre_query) == 1:
+            if forum:
+                SQL = "SELECT * FROM `post` p WHERE p.`forum` = %s"
+            else:
+                SQL = "SELECT * FROM `post` p WHERE p.`thread` = %s"
             if since:
                 SQL += " AND p.`date` >= %s"
                 params += (since, )
@@ -423,12 +400,6 @@ def list_posts():
                     item["date"] = get_date(item["date"])
                 post = post_query
                 code = c_OK
-            else:
-                post = "No posts match this request"
-                code = c_NOT_FOUND
-        else:
-            post = "No such thread"
-            code = c_NOT_FOUND
     else:
         post = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS

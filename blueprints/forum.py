@@ -58,11 +58,12 @@ def detail():
     if short_name and check_list(related, ("user", )):
         if "user" in related:
             forum_query = select_query(
-                """
-SELECT f.`id`, f.`name`, u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `forum` f
+                """SELECT f.`id`, f.`name`, u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
+flwr.`followee`, flwe.`follower`, sub.`thread` FROM `forum` f
 LEFT JOIN `user` u ON u.`email` = f.`user`
 LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`
 WHERE f.`short_name` = %s""",
                 (short_name, ),
                 verbose=False
@@ -81,7 +82,7 @@ WHERE f.`short_name` = %s""",
                     "isAnonymous": bool(forum_buf["isAnonymous"]),
                     "followers": [],
                     "following": [],
-                    "subscriptions": [],  # TODO: update inserting subscr
+                    "subscriptions": [],
                 }
             }
             for line in forum_query:
@@ -89,6 +90,8 @@ WHERE f.`short_name` = %s""",
                     forum["user"]["followers"].append(line["followee"])
                 if "follower" in line and line["follower"]:
                     forum["user"]["following"].append(line["follower"])
+                if "thread" in line and line["thread"]:
+                    forum["user"]["subscriptions"].append(line["thread"])
         else:
             forum_query = select_query(
                 "SELECT * FROM `forum` f WHERE f.`short_name` = %s",
@@ -115,10 +118,11 @@ def list_users():
     order = request.args.get("order", "desc")
     if short_name and order in ("asc", "desc"):
         SQL = """SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
-flwr.`followee`, flwe.`follower` FROM `user` u
+flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
 LEFT JOIN `post` p ON p.`user` = u.`email`
 LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`
 WHERE p.`forum` = %s"""
         params = (short_name, )
         if since_id:
