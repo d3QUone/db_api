@@ -28,13 +28,13 @@ def create():
     about = params.get("about", None)
     isAnonymous = int(bool(params.get("isAnonymous")))
     if email:
-        print "Creating user '{0}'".format(email)
+        # print "Creating user '{0}'".format(email)
         user = get_user_profile(email)
         code = c_OK
         if not user:
             row_id = update_query(
                 "INSERT INTO `user` (`username`, `email`, `name`, `about`, `isAnonymous`) VALUES (%s, %s, %s, %s, %s)",
-                (username, email, name, about, isAnonymous, ),
+                (username, email, name, about, isAnonymous),
                 verbose=False
             )
             user = {
@@ -64,7 +64,7 @@ def create():
 def detail():
     email = request.args.get("user", None)
     if email:
-        print "Detailing user '{0}'".format(email)
+        # print "Detailing user '{0}'".format(email)
         user = get_user_profile(email)
         code = c_OK
         if not user:
@@ -93,7 +93,7 @@ def update():
         print "Updating user '{0}'".format(email)
         update_query(
             "UPDATE `user` SET name = %s, about = %s WHERE email = %s",
-            (name, about, email, ),
+            (name, about, email),
             verbose=False
         )
         user = get_user_profile(email)
@@ -110,6 +110,7 @@ def update():
     })
 
 
+# TODO: pass test
 @user_blueprint.route("/follow/", methods=["POST"])
 def follow():
     try:
@@ -120,10 +121,10 @@ def follow():
     follower = params.get("follower", None)  # it's ME :)
     followee = params.get("followee", None)
     if follower and followee:
-        print "{0} following {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
+        # print "{0} following {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
         update_query(
             "INSERT INTO `follower` (`follower`, `followee`) VALUES (%s, %s)",
-            (follower, followee, ),
+            (follower, followee),
             verbose=False
         )
         user = get_user_profile(follower)
@@ -140,6 +141,7 @@ def follow():
     })
 
 
+# TODO: pass test
 @user_blueprint.route("/unfollow/", methods=["POST"])
 def unfollow():
     try:
@@ -150,10 +152,10 @@ def unfollow():
     follower = params.get("follower", None)  # it's ME :)
     followee = params.get("followee", None)
     if follower and followee:
-        print "{0} unfollowing {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
+        # print "{0} unfollowing {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
         update_query(
             "DELETE FROM `follower` WHERE `follower`.`follower` = %s AND `follower`.`followee` = %s LIMIT 1",
-            (follower, followee, ),
+            (follower, followee),
             verbose=False
         )
         user = get_user_profile(follower)
@@ -173,23 +175,104 @@ def unfollow():
 @user_blueprint.route("/listFollowers/", methods=["GET"])
 def list_followers():
     email = request.args.get("user", None)
-    if email:
-        # LEFT JOIN `follower` fol ON fol.`followee` = u.`email`
-        r = select_query(
-            """
-SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower` FROM `user` u
-JOIN `follower` flwr ON flwr.`follower` = u.`email`
-JOIN `follower` flwe ON flwe.`followee` = flwr.`follower`
-WHERE flwe.`followee`=%s
-""",
-            (email, ),
-            verbose=False
-        )
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since_id = get_int_or_none(request.args.get("since_id", None))
+    order = request.args.get("order", "desc")
+    if email and order in ("asc", "desc"):
+        SQL = """SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
+flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`
+WHERE u.`email` IN (SELECT f.`follower` FROM `follower` f WHERE f.`followee` = %s)"""
+        params = (email, ),
+        if since_id:
+            SQL += " AND u.`id` >= %s"
+            params += (since_id, )
+        SQL += " ORDER BY u.`name` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+        r = select_query(SQL, params, verbose=False)
         user = prepare_profiles(r)
         code = c_OK
     else:
         user = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
+    # print "*"*50, "\nFollowers: {0}\n".format(repr(user)), "*"*50
+    return ujson.dumps({
+        "response": user,
+        "code": code,
+    })
+
+
+@user_blueprint.route("/listFollowing/", methods=["GET"])
+def list_following():
+    email = request.args.get("user", None)
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since_id = get_int_or_none(request.args.get("since_id", None))
+    order = request.args.get("order", "desc")
+    if email and order in ("asc", "desc"):
+        SQL = """SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
+flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`
+WHERE u.`email` IN (SELECT f.`followee` FROM `follower` f WHERE f.`follower` = %s)"""
+        params = (email, ),
+        if since_id:
+            SQL += " AND u.`id` >= %s"
+            params += (since_id, )
+        SQL += " ORDER BY u.`name` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+        r = select_query(SQL, params, verbose=False)
+        user = prepare_profiles(r)
+        code = c_OK
+    else:
+        user = "Invalid request"
+        code = c_INVALID_REQUEST_PARAMS
+    # print "*"*50, "\nFollowing: {0}\n".format(repr(user)), "*"*50
+    return ujson.dumps({
+        "response": user,
+        "code": code,
+    })
+
+
+# TODO: pass test
+@user_blueprint.route("/listPosts/", methods=["GET"])
+def list_posts():
+    email = request.args.get("user", None)
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since = request.args.get("since", None)
+    order = request.args.get("order", "desc")
+    if email and order in ("asc", "desc"):
+        SQL = "SELECT * FROM `post` p WHERE p.`user` = %s"
+        params = (email, ),
+        if since:
+            SQL += " AND p.`date` >= %s"
+            params += (since, )
+        SQL += " ORDER BY p.`date` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+        post_query = select_query(SQL, params, verbose=False)
+        if len(post_query) > 0:
+            for item in post_query:
+                item["date"] = get_date(item["date"])
+            user = post_query
+            code = c_OK
+        else:
+            user = "Posts not found"
+            code = c_NOT_FOUND
+    else:
+        user = "Invalid request"
+        code = c_INVALID_REQUEST_PARAMS
+    # print "*"*50, "\nUserPosts: {0}\n".format(repr(user)), "*"*50
     return ujson.dumps({
         "response": user,
         "code": code,
@@ -236,8 +319,8 @@ def prepare_profiles(query):
 def get_user_profile(email):
     """Return full profile + subscribers + followers + following"""
     r = select_query(
-        """
-SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`, flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
+        """SELECT u.`id`, u.`username`, u.`email`, u.`name`, u.`about`, u.`isAnonymous`,
+flwr.`followee`, flwe.`follower`, sub.`thread` FROM `user` u
 LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
 LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
 LEFT JOIN `subscription` sub ON sub.`user` = u.`email`

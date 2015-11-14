@@ -105,16 +105,14 @@ def details():
     related = request.values.getlist("related")
     if th_id and th_id > 0 and check_list(related, ("user", "forum")):
         if "forum" in related:
-            # t.`forum`, t.`title`, t.`isClosed`, t.`user`, t.`date`, t.`message`, t.`slug`, t.`isDeleted`
             thread = select_query(
                 "SELECT * FROM `thread` t LEFT JOIN `forum` f ON f.`short_name` = t.`forum` WHERE t.`id` = %s",
                 (th_id, ),
                 verbose=False
             )
         else:
-            #  t.`isDeleted` = FALSE AND t.`isClosed` = FALSE AND
             thread = select_query(
-                "SELECT * FROM `thread` t WHERE t.`id` = %s",
+                "SELECT * FROM `thread` t WHERE t.`id` = %s",  # t.`isDeleted` = FALSE AND
                 (th_id, ),
                 verbose=False
             )
@@ -154,6 +152,7 @@ def details():
     })
 
 
+# TODO: pass test
 @thread_blueprint.route("/list/", methods=["GET"])
 def list_threads():
     email = request.args.get("user", None)
@@ -191,6 +190,8 @@ def list_threads():
     })
 
 
+# TODO: pass test
+# TODO: thread.listPosts
 @thread_blueprint.route("/listPosts/", methods=["GET"])
 def list_posts():
     th_id = get_int_or_none(request.args.get("thread", None))
@@ -201,7 +202,7 @@ def list_posts():
     order = request.args.get("order", "desc")
     if th_id and th_id > 0 and sort in ("flat", "tree", "parent_tree") and order in ("asc", "desc"):
         if sort == "flat":
-            SQL = "SELECT * FROM `post` p WHERE p.`thread` = %s"
+            SQL = "SELECT p.* FROM `post` p LEFT JOIN `thread` t ON t.`id` = p.`thread` WHERE t.`isDeleted` = FALSE AND p.`thread` = %s"
             params = (th_id, )
             if since:
                 SQL += " AND p.`date` >= %s"
@@ -260,7 +261,7 @@ def subscribe():
             update_query(
                 "INSERT INTO `subscription` (`user`, `thread`) VALUES (%s, %s)",
                 (email, th_id),
-                verbose=True
+                verbose=False
             )
             thrd = {
                 "user": email,
@@ -301,7 +302,7 @@ def unsubscribe():
             update_query(
                 "DELETE FROM `subscription` WHERE `subscription`.`user` = %s AND `subscription`.`thread` = %s LIMIT 1",
                 (email, th_id),
-                verbose=True
+                verbose=False
             )
             thrd = {
                 "user": email,
@@ -342,17 +343,19 @@ def vote_thread():
             thrd = thread[0]
             if vote == 1:
                 thrd["likes"] += 1
+                thrd["points"] = thrd["likes"] - thrd["dislikes"]
                 update_query(
-                    "UPDATE `thread` t SET t.`likes` = %s WHERE t.`id` = %s",
-                    (thrd["likes"], th_id, ),
+                    "UPDATE `thread` t SET t.`likes` = %s, t.`points` = %s WHERE t.`id` = %s",
+                    (thrd["likes"], thrd["points"], th_id),
                     verbose=False
                 )
                 code = c_OK
             elif vote == -1:
                 thrd["dislikes"] += 1
+                thrd["points"] = thrd["likes"] - thrd["dislikes"]
                 update_query(
-                    "UPDATE `thread` t SET t.`dislikes` = %s WHERE t.`id` = %s",
-                    (thrd["dislikes"], th_id, ),
+                    "UPDATE `thread` t SET t.`dislikes` = %s, t.`points` = %s WHERE t.`id` = %s",
+                    (thrd["dislikes"], thrd["points"], th_id),
                     verbose=False
                 )
                 code = c_OK
@@ -432,6 +435,7 @@ def open():
     })
 
 
+# TODO: pass test
 @thread_blueprint.route("/remove/", methods=["POST"])
 def remove():
     try:
@@ -460,6 +464,7 @@ def remove():
     })
 
 
+# TODO: pass test
 @thread_blueprint.route("/restore/", methods=["POST"])
 def restore():
     try:

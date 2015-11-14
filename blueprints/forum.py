@@ -1,5 +1,6 @@
 __author__ = 'vladimir'
 
+from collections import OrderedDict
 import traceback
 
 import ujson
@@ -26,7 +27,7 @@ def create():
     if name and short_name and email:
         user = get_user_profile(email)
         if user:
-            print "Creating forum '{0}'".format(short_name)
+            # print "Creating forum '{0}'".format(short_name)
             forum_id = update_query(
                 "INSERT INTO `forum` (`name`, `short_name`, `user`) VALUES (%s, %s, %s)",
                 (name, short_name, email),
@@ -109,6 +110,7 @@ WHERE f.`short_name` = %s""",
     })
 
 
+# TODO: pass test
 @forum_blueprint.route("/listUsers/", methods=["GET"])
 def list_users():
     short_name = request.args.get("forum", None)
@@ -149,4 +151,212 @@ WHERE p.`forum` = %s"""
     })
 
 
-# ######## HELPERS ########
+# TODO: pass test
+@forum_blueprint.route("/listPosts/", methods=["GET"])
+def list_posts():
+    short_name = request.args.get("forum", None)
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since = request.args.get("since", None)
+    order = request.args.get("order", "desc")
+    related = request.values.getlist("related")
+    if short_name and check_list(related, ("thread", "forum", "user")):
+        SQL = "SELECT * FROM `post` p"
+        params = (short_name, )
+        if "thread" in related:
+            SQL += " LEFT JOIN `thread` t ON t.`id` = p.`thread`"
+        if "forum" in related:
+            SQL += " LEFT JOIN `forum` f ON f.`short_name` = p.`forum`"
+        if "user" in related:
+            SQL += """ LEFT JOIN `user` u ON u.`email` = p.`user`
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
+        SQL += " WHERE p.`forum` = %s"
+        if since:
+            SQL += " AND p.`date` >= %s"
+            params += (since, )
+        SQL += " ORDER BY p.`date` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+
+        posts_query = select_query(SQL, params, verbose=False)
+        if len(posts_query) > 0 and len(related) > 0:
+            buf = OrderedDict()
+            for post in posts_query:
+                if post["id"] not in buf:
+                    buf[post["id"]] = {
+                        "id": post["id"],
+                        "message": post["message"],
+                        "date": get_date(post["date"]),
+                        "thread": post["thread"],
+                        "user": post["user"],
+                        "parent": post["parent"],
+                        "isApproved": bool(post["isApproved"]),
+                        "isDeleted": bool(post["isDeleted"]),
+                        "isEdited": bool(post["isEdited"]),
+                        "isSpam": bool(post["isSpam"]),
+                        "isHighlighted": bool(post["isHighlighted"]),
+                        "forum": post["forum"],
+                        "likes": post["likes"],
+                        "dislikes": post["dislikes"],
+                        "points": post["points"],
+                    }
+                if "thread" in related and not isinstance(buf[post["id"]]["thread"], dict):
+                    buf[post["id"]]["thread"] = {
+                        "id": post["t.id"],
+                        "title": post["title"],
+                        "date": get_date(post["t.date"]),
+                        "message": post["t.message"],
+                        "forum": post["t.forum"],
+                        "user": post["t.user"],
+                        "isDeleted": bool(post["t.isDeleted"]),
+                        "isClosed": bool(post["isClosed"]),
+                        "slug": post["slug"],
+                        "likes": post["t.likes"],
+                        "dislikes": post["t.dislikes"],
+                        "points": post["t.points"],
+                        "posts": post["posts"],
+                    }
+                if "forum" in related and not isinstance(buf[post["id"]]["forum"], dict):
+                    buf[post["id"]]["forum"] = {
+                        "id": post["f.id"],
+                        "name": post["name"],
+                        "user": post["f.user"],
+                        "short_name": post["short_name"],
+                    }
+                if "user" in related and not isinstance(buf[post["id"]]["user"], dict):
+                    buf[post["id"]]["user"] = {
+                        "id": post["id"],
+                        "username": post["u.name"],
+                        "email": post["email"],
+                        "name": post["name"],
+                        "about": post["about"],
+                        "isAnonymous": bool(post["isAnonymous"]),
+                        "followers": [],
+                        "following": [],
+                        "subscriptions": [],
+                    }
+                if "user" in related:
+                    # flwr.`followee`, flwe.`follower`
+                    if "followee" in post and post["followee"]:
+                        buf[post["id"]]["user"]["followers"].append(post["followee"])
+                    if "flwe.follower" in post and post["flwe.follower"]:
+                        buf[post["id"]]["user"]["following"].append(post["flwe.follower"])
+                    if "sub.thread" in post and post["sub.thread"]:
+                        buf[post["id"]]["user"]["subscriptions"].append(post["sub.thread"])
+            forum = []
+            append = forum.append
+            code = c_OK
+            for k in buf:
+                append(buf[k])
+        elif len(posts_query) > 0:  # no related -> nothing to render
+            forum = posts_query
+            code = c_OK
+        else:
+            forum = "Nothing found"
+            code = c_NOT_FOUND
+    else:
+        forum = "Invalid request"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": forum,
+        "code": code,
+    })
+
+
+# TODO: pass test
+@forum_blueprint.route("/listThreads/", methods=["GET"])
+def list_threads():
+    short_name = request.args.get("forum", None)
+    # optional
+    limit = get_int_or_none(request.args.get("limit", None))
+    since = request.args.get("since", None)
+    order = request.args.get("order", "desc")
+    related = request.values.getlist("related")
+    if short_name and check_list(related, ("forum", "user")):
+        SQL = "SELECT * FROM `thread` t"
+        params = (short_name, )
+        if "forum" in related:
+            SQL += " LEFT JOIN `forum` f ON f.`short_name` = t.`forum`"
+        if "user" in related:
+            SQL += """ LEFT JOIN `user` u ON u.`email` = t.`user`
+LEFT JOIN `follower` flwr ON flwr.`follower` = u.`email`
+LEFT JOIN `follower` flwe ON flwe.`followee` = u.`email`
+LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
+        SQL += " WHERE t.`isDeleted` = FALSE AND t.`forum` = %s"
+        if since:
+            SQL += " AND t.`date` >= %s"
+            params += (since, )
+        SQL += " ORDER BY t.`date` {0}".format(order.upper())
+        if limit and limit > 0:
+            SQL += " LIMIT %s"
+            params += (limit, )
+
+        # TODO: rename to 'thread'
+        posts_query = select_query(SQL, params, verbose=False)
+        if len(posts_query) > 0 and len(related) > 0:
+            buf = OrderedDict()
+            for post in posts_query:
+                if post["id"] not in buf:
+                    buf[post["id"]] = {
+                        "id": post["id"],
+                        "title": post["title"],
+                        "date": get_date(post["date"]),
+                        "message": post["message"],
+                        "forum": post["forum"],
+                        "user": post["user"],
+                        "isDeleted": bool(post["isDeleted"]),
+                        "isClosed": bool(post["isClosed"]),
+                        "slug": post["slug"],
+                        "likes": post["likes"],
+                        "dislikes": post["dislikes"],
+                        "points": post["points"],
+                        "posts": post["posts"],
+                    }
+                if "forum" in related and not isinstance(buf[post["id"]]["forum"], dict):
+                    buf[post["id"]]["forum"] = {
+                        "id": post["f.id"],
+                        "name": post["name"],
+                        "user": post["f.user"],
+                        "short_name": post["short_name"],
+                    }
+                if "user" in related and not isinstance(buf[post["id"]]["user"], dict):
+                    buf[post["id"]]["user"] = {
+                        "id": post["id"],
+                        "username": post["u.name"],
+                        "email": post["email"],
+                        "name": post["name"],
+                        "about": post["about"],
+                        "isAnonymous": bool(post["isAnonymous"]),
+                        "followers": [],
+                        "following": [],
+                        "subscriptions": [],
+                    }
+                if "user" in related:
+                    # flwr.`followee`, flwe.`follower`
+                    if "followee" in post and post["followee"]:
+                        buf[post["id"]]["user"]["followers"].append(post["followee"])
+                    if "flwe.follower" in post and post["flwe.follower"]:
+                        buf[post["id"]]["user"]["following"].append(post["flwe.follower"])
+                    if "sub.thread" in post and post["sub.thread"]:
+                        buf[post["id"]]["user"]["subscriptions"].append(post["sub.thread"])
+            forum = []
+            append = forum.append
+            code = c_OK
+            for k in buf:
+                append(buf[k])
+        elif len(posts_query) > 0:
+            forum = posts_query
+            code = c_OK
+        else:
+            forum = "Nothing found"
+            code = c_NOT_FOUND
+    else:
+        forum = "Invalid request"
+        code = c_INVALID_REQUEST_PARAMS
+    return ujson.dumps({
+        "response": forum,
+        "code": code,
+    })
