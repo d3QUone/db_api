@@ -272,7 +272,7 @@ def subscribe():
         #     thread = "Already created"
         #     code = ?
         else:
-            thrd = "No such user"
+            thrd = "No such thread"
             code = c_INVALID_REQUEST_PARAMS
     elif th_id and th_id < 0:
         thrd = "Not found"
@@ -310,7 +310,7 @@ def unsubscribe():
             }
             code = c_OK
         else:
-            thrd = "No such user"
+            thrd = "No such thread"
             code = c_INVALID_REQUEST_PARAMS
     elif th_id and th_id < 0:
         thrd = "Not found"

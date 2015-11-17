@@ -110,7 +110,6 @@ def update():
     })
 
 
-# TODO: pass test
 @user_blueprint.route("/follow/", methods=["POST"])
 def follow():
     try:
@@ -141,7 +140,6 @@ def follow():
     })
 
 
-# TODO: pass test
 @user_blueprint.route("/unfollow/", methods=["POST"])
 def unfollow():
     try:
@@ -299,10 +297,10 @@ def prepare_profiles(query):
                 "following": [],
                 "subscriptions": [],
             }
-        if "followee" in user and user["followee"]:
-            buf[user["email"]]["followers"].append(user["followee"])
         if "follower" in user and user["follower"]:
-            buf[user["email"]]["following"].append(user["follower"])
+            buf[user["email"]]["followers"].append(user["follower"])
+        if "followee" in user and user["followee"]:
+            buf[user["email"]]["following"].append(user["followee"])
         if "thread" in user and user["thread"]:
             buf[user["email"]]["subscriptions"].append(user["thread"])
         i += 1
@@ -336,10 +334,10 @@ WHERE `email`=%s
         user["following"] = []
         user["subscriptions"] = []  # TODO: update inserting subscr, don't show until...
         for line in r:
-            if "followee" in line and line["followee"]:
-                user["followers"].append(line["followee"])
             if "follower" in line and line["follower"]:
-                user["following"].append(line["follower"])
+                user["followers"].append(line["follower"])
+            if "followee" in line and line["followee"]:
+                user["following"].append(line["followee"])
             if "thread" in line and line["thread"]:
                 user["subscriptions"].append(line["thread"])
         del user["followee"]
