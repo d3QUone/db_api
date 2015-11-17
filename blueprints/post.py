@@ -28,11 +28,11 @@ def create():
     forum = params.get("forum", None)
     # optional
     parent = get_int_or_none(params.get("parent", None))
-    isApproved = int(bool(params.get("isApproved", None)))
-    isHighlighted = int(bool(params.get("isHighlighted", None)))
-    isEdited = int(bool(params.get("isEdited", None)))
-    isSpam = int(bool(params.get("isSpam", None)))
-    isDeleted = int(bool(params.get("isDeleted", None)))
+    isApproved = bool(params.get("isApproved", None))
+    isHighlighted = bool(params.get("isHighlighted", None))
+    isEdited = bool(params.get("isEdited", None))
+    isSpam = bool(params.get("isSpam", None))
+    isDeleted = bool(params.get("isDeleted", None))
     if date and thread and thread > 0 and message and user and forum:
         thread_obj = select_query(
             "SELECT t.`posts` FROM `thread` t WHERE t.`id` = %s",
@@ -394,13 +394,11 @@ def list_posts():
             if limit and limit > 0:
                 SQL += " LIMIT %s"
                 params += (limit, )
-
-            post_query = select_query(SQL, params, verbose=False)
-            if len(post_query) > 0:
-                for item in post_query:
+            post = select_query(SQL, params, verbose=False)
+            code = c_OK
+            if len(post) > 0:
+                for item in post:
                     item["date"] = get_date(item["date"])
-                post = post_query
-                code = c_OK
     else:
         post = "Invalid params passed"
         code = c_INVALID_REQUEST_PARAMS

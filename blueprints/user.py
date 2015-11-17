@@ -193,8 +193,11 @@ WHERE u.`email` IN (SELECT f.`follower` FROM `follower` f WHERE f.`followee` = %
             SQL += " LIMIT %s"
             params += (limit, )
         r = select_query(SQL, params, verbose=False)
-        user = prepare_profiles(r)
         code = c_OK
+        if len(r) > 0:
+            user = prepare_profiles(r)
+        else:
+            user = []
     else:
         user = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
@@ -228,8 +231,11 @@ WHERE u.`email` IN (SELECT f.`followee` FROM `follower` f WHERE f.`follower` = %
             SQL += " LIMIT %s"
             params += (limit, )
         r = select_query(SQL, params, verbose=False)
-        user = prepare_profiles(r)
         code = c_OK
+        if len(r) > 0:
+            user = prepare_profiles(r)
+        else:
+            user = []
     else:
         user = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
@@ -240,7 +246,6 @@ WHERE u.`email` IN (SELECT f.`followee` FROM `follower` f WHERE f.`follower` = %
     })
 
 
-# TODO: pass test
 @user_blueprint.route("/listPosts/", methods=["GET"])
 def list_posts():
     email = request.args.get("user", None)
@@ -258,15 +263,13 @@ def list_posts():
         if limit and limit > 0:
             SQL += " LIMIT %s"
             params += (limit, )
-        post_query = select_query(SQL, params, verbose=False)
-        if len(post_query) > 0:
-            for item in post_query:
+        user = select_query(SQL, params, verbose=False)
+        code = c_OK
+        if len(user) > 0:
+            for item in user:
                 item["date"] = get_date(item["date"])
-            user = post_query
-            code = c_OK
         else:
-            user = "Posts not found"
-            code = c_NOT_FOUND
+            user = []
     else:
         user = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
@@ -285,6 +288,7 @@ def prepare_profiles(query):
     i = 0
     while i < len(query):
         user = query[i]
+        print "user-{0} = {1}\n".format(i, user), "-"*50
         if user["email"] not in buf:
             buf[user["email"]] = {
                 "id": user["id"],
@@ -302,7 +306,8 @@ def prepare_profiles(query):
         if "followee" in user and user["followee"]:
             buf[user["email"]]["following"].append(user["followee"])
         if "thread" in user and user["thread"]:
-            buf[user["email"]]["subscriptions"].append(user["thread"])
+            if not user["thread"] in buf[user["email"]]["subscriptions"]:
+                buf[user["email"]]["subscriptions"].append(user["thread"])
         i += 1
     # render list saving the order
     res = []

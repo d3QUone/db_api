@@ -152,7 +152,6 @@ def details():
     })
 
 
-# TODO: pass test
 @thread_blueprint.route("/list/", methods=["GET"])
 def list_threads():
     email = request.args.get("user", None)
@@ -177,10 +176,10 @@ def list_threads():
             SQL += " LIMIT %s"
             params += (limit, )
         thrd = select_query(SQL, params, verbose=False)
+        if len(thrd) > 0:
+            for item in thrd:
+                item["date"] = get_date(item["date"])
         code = c_OK
-        if len(thrd) == 0:
-            thrd = "Nothing found"
-            code = c_NOT_FOUND
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
@@ -202,12 +201,13 @@ def list_posts():
     order = request.args.get("order", "desc")
     if th_id and th_id > 0 and sort in ("flat", "tree", "parent_tree") and order in ("asc", "desc"):
         if sort == "flat":
-            SQL = "SELECT p.* FROM `post` p LEFT JOIN `thread` t ON t.`id` = p.`thread` WHERE t.`isDeleted` = FALSE AND p.`thread` = %s"
+            # t.`isDeleted` = FALSE AND
+            SQL = "SELECT p.* FROM `post` p LEFT JOIN `thread` t ON t.`id` = p.`thread` WHERE p.`thread` = %s"
             params = (th_id, )
             if since:
                 SQL += " AND p.`date` >= %s"
                 params += (since, )
-            SQL += " ORDER BY p.`date` {0}".format(order.upper())
+            SQL += " ORDER BY p.`parent`, p.`date` {0}".format(order.upper())
             if limit and limit > 0:
                 SQL += " LIMIT %s"
                 params += (limit, )
@@ -215,20 +215,20 @@ def list_posts():
             # TODO: tree sort
             SQL = None
             params = None
-
         else:
             # TODO: parent tree sort
             SQL = None
             params = None
-
         thrd = select_query(SQL, params, verbose=False)  # posts query
         code = c_OK
-        if len(thrd) == 0:
-            thrd = "Nothing found"
-            code = c_NOT_FOUND
-        else:
+        if len(thrd) > 0:
             for item in thrd:
                 item["date"] = get_date(item["date"])
+                item["isApproved"] = bool(item["isApproved"])
+                item["isDeleted"] = bool(item["isDeleted"])
+                item["isEdited"] = bool(item["isEdited"])
+                item["isSpam"] = bool(item["isSpam"])
+                item["isHighlighted"] = bool(item["isHighlighted"])
     elif th_id and th_id < 0:
         thrd = "Not found"
         code = c_NOT_FOUND
@@ -446,7 +446,13 @@ def remove():
     th_id = get_int_or_none(params.get("thread", None))
     if th_id and th_id > 0:
         update_query(
+            # , t.`posts` = 0
             "UPDATE `thread` t SET t.`isDeleted` = TRUE WHERE t.`id` = %s",
+            (th_id, ),
+            verbose=False
+        )
+        update_query(
+            "UPDATE `post` p SET p.`isDeleted` = TRUE WHERE p.`thread` = %s",
             (th_id, ),
             verbose=False
         )
@@ -474,8 +480,19 @@ def restore():
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
     th_id = get_int_or_none(params.get("thread", None))
     if th_id and th_id >= 0:
-        r = update_query(
+        # s = select_query(
+        #     "SELECT COUNT(p.`id`) AS `C` FROM `post` p WHERE p.`thread` = %s",
+        #     (th_id, ),
+        #     verbose=False
+        # )
+        # print "Count = {0}".format(s[0]) , t.`posts` = %s
+        update_query(
             "UPDATE `thread` t SET t.`isDeleted` = FALSE WHERE t.`id` = %s",
+            (th_id, ),
+            verbose=False
+        )
+        update_query(
+            "UPDATE `post` p SET p.`isDeleted` = FALSE WHERE p.`thread` = %s",
             (th_id, ),
             verbose=False
         )

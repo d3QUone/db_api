@@ -88,9 +88,9 @@ WHERE f.`short_name` = %s""",
             }
             for line in forum_query:
                 if "followee" in line and line["followee"]:
-                    forum["user"]["followers"].append(line["followee"])
+                    forum["user"]["following"].append(line["followee"])
                 if "follower" in line and line["follower"]:
-                    forum["user"]["following"].append(line["follower"])
+                    forum["user"]["followers"].append(line["follower"])
                 if "thread" in line and line["thread"]:
                     forum["user"]["subscriptions"].append(line["thread"])
         else:
@@ -110,7 +110,7 @@ WHERE f.`short_name` = %s""",
     })
 
 
-# TODO: pass test
+# TODO: fix 'limit' -- some times wrong
 @forum_blueprint.route("/listUsers/", methods=["GET"])
 def list_users():
     short_name = request.args.get("forum", None)
@@ -134,14 +134,12 @@ WHERE p.`forum` = %s"""
         if limit and limit > 0:
             SQL += " LIMIT %s"
             params += (limit, )
-
         u_query = select_query(SQL, params, verbose=False)
+        code = c_OK
         if len(u_query) > 0:
             forum = prepare_profiles(u_query)
-            code = c_OK
         else:
-            forum = "Nothing found"
-            code = c_NOT_FOUND
+            forum = []
     else:
         forum = "invalid request"
         code = c_INVALID_REQUEST_PARAMS
@@ -151,7 +149,6 @@ WHERE p.`forum` = %s"""
     })
 
 
-# TODO: pass test
 @forum_blueprint.route("/listPosts/", methods=["GET"])
 def list_posts():
     short_name = request.args.get("forum", None)
@@ -180,8 +177,8 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
         if limit and limit > 0:
             SQL += " LIMIT %s"
             params += (limit, )
-
         posts_query = select_query(SQL, params, verbose=False)
+        code = c_OK
         if len(posts_query) > 0 and len(related) > 0:
             buf = OrderedDict()
             for post in posts_query:
@@ -228,35 +225,35 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
                     }
                 if "user" in related and not isinstance(buf[post["id"]]["user"], dict):
                     buf[post["id"]]["user"] = {
-                        "id": post["id"],
-                        "username": post["u.name"],
+                        "id": post["u.id"],
+                        "username": post["username"],
                         "email": post["email"],
-                        "name": post["name"],
+                        "name": post["u.name"] if "u.name" in post else post["name"],
                         "about": post["about"],
                         "isAnonymous": bool(post["isAnonymous"]),
                         "followers": [],
                         "following": [],
                         "subscriptions": [],
                     }
+                # TODO: fix user subscriptions ???
                 if "user" in related:
-                    # flwr.`followee`, flwe.`follower`
+                    print "listPosts: {0}\n".format(post), "-"*50
                     if "followee" in post and post["followee"]:
-                        buf[post["id"]]["user"]["followers"].append(post["followee"])
+                        buf[post["id"]]["user"]["following"].append(post["followee"])
                     if "flwe.follower" in post and post["flwe.follower"]:
-                        buf[post["id"]]["user"]["following"].append(post["flwe.follower"])
+                        buf[post["id"]]["user"]["followers"].append(post["flwe.follower"])
                     if "sub.thread" in post and post["sub.thread"]:
                         buf[post["id"]]["user"]["subscriptions"].append(post["sub.thread"])
             forum = []
             append = forum.append
-            code = c_OK
             for k in buf:
                 append(buf[k])
         elif len(posts_query) > 0:  # no related -> nothing to render
+            for item in posts_query:
+                item["date"] = get_date(item["date"])
             forum = posts_query
-            code = c_OK
         else:
-            forum = "Nothing found"
-            code = c_NOT_FOUND
+            forum = []
     else:
         forum = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
@@ -293,12 +290,11 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
         if limit and limit > 0:
             SQL += " LIMIT %s"
             params += (limit, )
-
-        # TODO: rename to 'thread'
-        posts_query = select_query(SQL, params, verbose=False)
-        if len(posts_query) > 0 and len(related) > 0:
+        thread_query = select_query(SQL, params, verbose=False)
+        code = c_OK
+        if len(thread_query) > 0 and len(related) > 0:
             buf = OrderedDict()
-            for post in posts_query:
+            for post in thread_query:
                 if post["id"] not in buf:
                     buf[post["id"]] = {
                         "id": post["id"],
@@ -324,10 +320,10 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
                     }
                 if "user" in related and not isinstance(buf[post["id"]]["user"], dict):
                     buf[post["id"]]["user"] = {
-                        "id": post["id"],
-                        "username": post["u.name"],
+                        "id": post["u.id"],
+                        "username": post["username"],
                         "email": post["email"],
-                        "name": post["name"],
+                        "name": post["u.name"] if "u.name" in post else post["name"],
                         "about": post["about"],
                         "isAnonymous": bool(post["isAnonymous"]),
                         "followers": [],
@@ -335,24 +331,25 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
                         "subscriptions": [],
                     }
                 if "user" in related:
-                    # flwr.`followee`, flwe.`follower`
+                    print "listThreads: {0}\n".format(post), "-"*50
                     if "followee" in post and post["followee"]:
                         buf[post["id"]]["user"]["followers"].append(post["followee"])
                     if "flwe.follower" in post and post["flwe.follower"]:
                         buf[post["id"]]["user"]["following"].append(post["flwe.follower"])
                     if "sub.thread" in post and post["sub.thread"]:
                         buf[post["id"]]["user"]["subscriptions"].append(post["sub.thread"])
+                    elif "thread" in post and post["thread"]:
+                        buf[post["id"]]["user"]["subscriptions"].append(post["thread"])
             forum = []
             append = forum.append
-            code = c_OK
             for k in buf:
                 append(buf[k])
-        elif len(posts_query) > 0:
-            forum = posts_query
-            code = c_OK
+        elif len(thread_query) > 0:
+            for item in thread_query:
+                item["date"] = get_date(item["date"])
+            forum = thread_query
         else:
-            forum = "Nothing found"
-            code = c_NOT_FOUND
+            forum = []
     else:
         forum = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS
