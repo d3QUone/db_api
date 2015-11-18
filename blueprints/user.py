@@ -282,30 +282,32 @@ def list_posts():
 
 # ######## HELPERS ########
 
-def prepare_profiles(query):
+def prepare_profiles(query, limit=None):
     """Render bunch of profiles from queries result"""
     buf = OrderedDict()
     i = 0
     while i < len(query):
         user = query[i]
-        print "user-{0} = {1}\n".format(i, user), "-"*50
+        # print "user-{0} = {1}\n".format(i, user), "-"*50
         if user["email"] not in buf:
-            buf[user["email"]] = {
-                "id": user["id"],
-                "username": user["username"],
-                "email": user["email"],
-                "name": user["name"],
-                "about": user["about"],
-                "isAnonymous": bool(user["isAnonymous"]),
-                "followers": [],
-                "following": [],
-                "subscriptions": [],
-            }
-        if "follower" in user and user["follower"]:
+            if (limit and len(buf.keys()) < limit) or not limit:
+                # print "Keys={0}".format(len(buf.keys()))
+                buf[user["email"]] = {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user["email"],
+                    "name": user["name"],
+                    "about": user["about"],
+                    "isAnonymous": bool(user["isAnonymous"]),
+                    "followers": [],
+                    "following": [],
+                    "subscriptions": [],
+                }
+        if "follower" in user and user["follower"] and user["email"] in buf:
             buf[user["email"]]["followers"].append(user["follower"])
-        if "followee" in user and user["followee"]:
+        if "followee" in user and user["followee"] and user["email"] in buf:
             buf[user["email"]]["following"].append(user["followee"])
-        if "thread" in user and user["thread"]:
+        if "thread" in user and user["thread"] and user["email"] in buf:
             if not user["thread"] in buf[user["email"]]["subscriptions"]:
                 buf[user["email"]]["subscriptions"].append(user["thread"])
         i += 1

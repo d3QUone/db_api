@@ -110,7 +110,6 @@ WHERE f.`short_name` = %s""",
     })
 
 
-# TODO: fix 'limit' -- some times wrong
 @forum_blueprint.route("/listUsers/", methods=["GET"])
 def list_users():
     short_name = request.args.get("forum", None)
@@ -130,14 +129,14 @@ WHERE p.`forum` = %s"""
         if since_id:
             SQL += " AND u.`id` >= %s"
             params += (since_id, )
+        SQL += " GROUP BY u.`id`, sub.`thread`"
         SQL += " ORDER BY u.`name` {0}".format(order.upper())
-        if limit and limit > 0:
-            SQL += " LIMIT %s"
-            params += (limit, )
         u_query = select_query(SQL, params, verbose=False)
         code = c_OK
         if len(u_query) > 0:
-            forum = prepare_profiles(u_query)
+            if limit and limit < 0:
+                limit = None
+            forum = prepare_profiles(u_query, limit=limit)
         else:
             forum = []
     else:
