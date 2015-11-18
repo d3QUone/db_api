@@ -137,6 +137,9 @@ def details():
                     thrd["user"] = user
                 else:
                     code = c_NOT_FOUND
+            # hack
+            if bool(thrd["isDeleted"]):
+                thrd["posts"] = 0
         else:
             thrd = "Thread not found"
             code = c_NOT_FOUND
@@ -207,14 +210,20 @@ def list_posts():
             if since:
                 SQL += " AND p.`date` >= %s"
                 params += (since, )
-            SQL += " ORDER BY p.`parent`, p.`date` {0}".format(order.upper())
+            SQL += " ORDER BY p.`date` {0}".format(order.upper())
             if limit and limit > 0:
                 SQL += " LIMIT %s"
                 params += (limit, )
         elif sort == "tree":
-            # TODO: tree sort
-            SQL = None
-            params = None
+            SQL = "SELECT p.* FROM `post` p LEFT JOIN `thread` t ON t.`id` = p.`thread` WHERE p.`thread` = %s"
+            params = (th_id, )
+            if since:
+                SQL += " AND p.`date` >= %s"
+                params += (since, )
+            SQL += " ORDER BY p.`parent`, p.`date` {0}".format(order.upper())
+            if limit and limit > 0:
+                SQL += " LIMIT %s"
+                params += (limit, )
         else:
             # TODO: parent tree sort
             SQL = None

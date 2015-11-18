@@ -361,8 +361,6 @@ def vote_post():
     })
 
 
-# TODO: pass test
-# TODO: fix querying by date (misterious bug when nothing were found)
 @post_blueprint.route("/list/", methods=["GET"])
 def list_posts():
     forum = request.args.get("forum", None)

@@ -234,9 +234,8 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
                         "following": [],
                         "subscriptions": [],
                     }
-                # TODO: fix user subscriptions ???
                 if "user" in related:
-                    print "listPosts: {0}\n".format(post), "-"*50
+                    # print "listPosts: {0}\n".format(post), "-"*50
                     if "followee" in post and post["followee"]:
                         buf[post["id"]]["user"]["following"].append(post["followee"])
                     if "flwe.follower" in post and post["flwe.follower"]:
