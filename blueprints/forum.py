@@ -262,7 +262,6 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
     })
 
 
-# TODO: pass test
 @forum_blueprint.route("/listThreads/", methods=["GET"])
 def list_threads():
     short_name = request.args.get("forum", None)
@@ -286,38 +285,38 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
             SQL += " AND t.`date` >= %s"
             params += (since, )
         SQL += " ORDER BY t.`date` {0}".format(order.upper())
-        if limit and limit > 0:
-            SQL += " LIMIT %s"
-            params += (limit, )
+        if limit and limit < 0:
+            limit = None
         thread_query = select_query(SQL, params, verbose=False)
         code = c_OK
         if len(thread_query) > 0 and len(related) > 0:
             buf = OrderedDict()
             for post in thread_query:
                 if post["id"] not in buf:
-                    buf[post["id"]] = {
-                        "id": post["id"],
-                        "title": post["title"],
-                        "date": get_date(post["date"]),
-                        "message": post["message"],
-                        "forum": post["forum"],
-                        "user": post["user"],
-                        "isDeleted": bool(post["isDeleted"]),
-                        "isClosed": bool(post["isClosed"]),
-                        "slug": post["slug"],
-                        "likes": post["likes"],
-                        "dislikes": post["dislikes"],
-                        "points": post["points"],
-                        "posts": post["posts"],
-                    }
-                if "forum" in related and not isinstance(buf[post["id"]]["forum"], dict):
+                    if (limit and len(buf.keys()) < limit) or not limit:
+                        buf[post["id"]] = {
+                            "id": post["id"],
+                            "title": post["title"],
+                            "date": get_date(post["date"]),
+                            "message": post["message"],
+                            "forum": post["forum"],
+                            "user": post["user"],
+                            "isDeleted": bool(post["isDeleted"]),
+                            "isClosed": bool(post["isClosed"]),
+                            "slug": post["slug"],
+                            "likes": post["likes"],
+                            "dislikes": post["dislikes"],
+                            "points": post["points"],
+                            "posts": post["posts"],
+                        }
+                if "forum" in related and not isinstance(buf[post["id"]]["forum"], dict) and post["id"] in buf:
                     buf[post["id"]]["forum"] = {
                         "id": post["f.id"],
                         "name": post["name"],
                         "user": post["f.user"],
                         "short_name": post["short_name"],
                     }
-                if "user" in related and not isinstance(buf[post["id"]]["user"], dict):
+                if "user" in related and not isinstance(buf[post["id"]]["user"], dict) and post["id"] in buf:
                     buf[post["id"]]["user"] = {
                         "id": post["u.id"],
                         "username": post["username"],
@@ -330,14 +329,14 @@ LEFT JOIN `subscription` sub ON sub.`user` = u.`email`"""
                         "subscriptions": [],
                     }
                 if "user" in related:
-                    print "listThreads: {0}\n".format(post), "-"*50
-                    if "followee" in post and post["followee"]:
+                    # print "listThreads: {0}\n".format(post), "-"*50
+                    if "followee" in post and post["followee"] and post["id"] in buf:
                         buf[post["id"]]["user"]["followers"].append(post["followee"])
-                    if "flwe.follower" in post and post["flwe.follower"]:
+                    if "flwe.follower" in post and post["flwe.follower"] and post["id"] in buf:
                         buf[post["id"]]["user"]["following"].append(post["flwe.follower"])
-                    if "sub.thread" in post and post["sub.thread"]:
+                    if "sub.thread" in post and post["sub.thread"] and post["id"] in buf:
                         buf[post["id"]]["user"]["subscriptions"].append(post["sub.thread"])
-                    elif "thread" in post and post["thread"]:
+                    elif "thread" in post and post["thread"] and post["id"] in buf:
                         buf[post["id"]]["user"]["subscriptions"].append(post["thread"])
             forum = []
             append = forum.append
