@@ -40,33 +40,42 @@ def create():
             verbose=False
         )
         if len(thread_obj) == 1:
-            p_id = update_query(
-                "INSERT INTO `post` (`date`, `thread`, `message`, `user`, `forum`, `parent`, `isApproved`, `isHighlighted`, `isEdited`, `isSpam`, `isDeleted`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted),
+            test_q = select_query(
+                "SELECT * FROM `post` p WHERE p.`user` = %s AND p.`date` = %s",
+                (user, date),
                 verbose=False
             )
-            post = {
-                "id": p_id,
-                "message": message,
-                "date": date,
-                "thread": thread,
-                "user": user,
-                "parent": parent,
-                "isApproved": isApproved,
-                "isDeleted": isDeleted,
-                "isEdited": isEdited,
-                "isSpam": isSpam,
-                "isHighlighted": isHighlighted,
-                "forum": forum,
-            }
-            # update post amount in thread ...
-            thread_obj[0]["posts"] += 1
-            update_query(
-                "UPDATE `thread` SET `posts` = %s WHERE `id` = %s",
-                (thread_obj[0]["posts"], thread),
-                verbose=False
-            )
-            code = c_OK
+            if len(test_q) == 0:
+                p_id = update_query(
+                    "INSERT INTO `post` (`date`, `thread`, `message`, `user`, `forum`, `parent`, `isApproved`, `isHighlighted`, `isEdited`, `isSpam`, `isDeleted`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted),
+                    verbose=False
+                )
+                post = {
+                    "id": p_id,
+                    "message": message,
+                    "date": date,
+                    "thread": thread,
+                    "user": user,
+                    "parent": parent,
+                    "isApproved": isApproved,
+                    "isDeleted": isDeleted,
+                    "isEdited": isEdited,
+                    "isSpam": isSpam,
+                    "isHighlighted": isHighlighted,
+                    "forum": forum,
+                }
+                # update post amount in thread ...
+                thread_obj[0]["posts"] += 1
+                update_query(
+                    "UPDATE `thread` SET `posts` = %s WHERE `id` = %s",
+                    (thread_obj[0]["posts"], thread),
+                    verbose=False
+                )
+                code = c_OK
+            else:
+                post = "This post already exists"
+                code = c_INVALID_REQUEST_PARAMS
         else:
             post = "No such thread"
             code = c_NOT_FOUND
@@ -286,12 +295,13 @@ def detail():
                     "id": post["f.id"],
                     "user": post["f.user"],
                     "short_name": post["short_name"],
-                    "name": post["f.name"],
+                    "name": post["f.name"] if "f.name" in post else "",
                 }
                 del post["f.id"]
                 del post["f.user"]
                 del post["short_name"]
-                del post["f.name"]
+                if "f.name" in post:
+                    del post["f.name"]
             code = c_OK
         else:
             post = "Post not found"

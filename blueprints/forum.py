@@ -27,19 +27,28 @@ def create():
     if name and short_name and email:
         user = get_user_profile(email)
         if user:
-            # print "Creating forum '{0}'".format(short_name)
-            forum_id = update_query(
-                "INSERT INTO `forum` (`name`, `short_name`, `user`) VALUES (%s, %s, %s)",
-                (name, short_name, email),
+            test_q = select_query(
+                "SELECT `f`.name FROM `forum` f WHERE f.`short_name` = %s",
+                (short_name, ),
                 verbose=False
             )
-            forum = {
-                "id": forum_id,
-                "name": name,
-                "short_name": short_name,
-                "user": user,
-            }
-            code = c_OK
+            if len(test_q) == 0:
+                # print "Creating forum '{0}'".format(short_name)
+                forum_id = update_query(
+                    "INSERT INTO `forum` (`name`, `short_name`, `user`) VALUES (%s, %s, %s)",
+                    (name, short_name, email),
+                    verbose=False
+                )
+                forum = {
+                    "id": forum_id,
+                    "name": name,
+                    "short_name": short_name,
+                    "user": user,
+                }
+                code = c_OK
+            else:
+                forum = "This forum already exists"
+                code = c_INVALID_REQUEST_PARAMS
         else:
             forum = "no such user"
             code = c_NOT_FOUND

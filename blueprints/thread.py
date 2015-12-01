@@ -32,23 +32,33 @@ def create():
     # optional
     isDeleted = int(bool(params.get("isDeleted")))
     if forum_short_name and title and user_email and date and message and slug:
-        th_id = update_query(
-            "INSERT INTO `thread` (`forum`, `title`, `isClosed`, `user`, `date`, `message`, `slug`, `isDeleted`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (forum_short_name, title, isClosed, user_email, date, message, slug, isDeleted),
+        # check if do not exists
+        test_q = select_query(
+            "SELECT t.`id` FROM `thread` t WHERE t.`title` = %s",
+            (title, ),
             verbose=False
         )
-        thrd = {
-            "id": th_id,
-            "forum": forum_short_name,
-            "title": title,
-            "isClosed": isClosed,
-            "user": user_email,
-            "date": date,
-            "message": message,
-            "slug": slug,
-            "isDeleted": isDeleted,
-        }
-        code = c_OK
+        if len(test_q) == 0:
+            th_id = update_query(
+                "INSERT INTO `thread` (`forum`, `title`, `isClosed`, `user`, `date`, `message`, `slug`, `isDeleted`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (forum_short_name, title, isClosed, user_email, date, message, slug, isDeleted),
+                verbose=False
+            )
+            thrd = {
+                "id": th_id,
+                "forum": forum_short_name,
+                "title": title,
+                "isClosed": isClosed,
+                "user": user_email,
+                "date": date,
+                "message": message,
+                "slug": slug,
+                "isDeleted": isDeleted,
+            }
+            code = c_OK
+        else:
+            thrd = "This thread already exists"
+            code = c_INVALID_REQUEST_PARAMS
     else:
         thrd = "Invalid params"
         code = c_INVALID_REQUEST_PARAMS
