@@ -1,7 +1,6 @@
 __author__ = 'vladimir'
 
-# import ujson
-import json as ujson
+import ujson
 from flask import Flask
 
 from blueprints.database import update_query, select_query
@@ -57,4 +56,4 @@ def debug_printout():
 
 if __name__ == "__main__":
     debug_printout()
-    app.run("127.0.0.1", port=5000)
+    app.run("0.0.0.0", port=5000)

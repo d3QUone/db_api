@@ -3,8 +3,7 @@ __author__ = 'vladimir'
 from collections import OrderedDict
 import traceback
 
-# import ujson
-import json as ujson
+import ujson
 from flask import Blueprint, request
 
 from . import *
