@@ -1,6 +1,7 @@
 __author__ = 'vladimir'
 
-import ujson
+# import ujson
+import json as ujson
 from flask import Flask
 
 from blueprints.database import update_query, select_query
