@@ -18,7 +18,6 @@ user_blueprint = Blueprint("user", __name__, url_prefix="user")
 def create():
     try:
         params = request.json
-        # print "*"*50, "\nGot params: {0}\n".format(repr(params)), "*"*50
     except Exception:
         print "user.create params exception:\n{0}".format(traceback.format_exc())
         return ujson.dumps({"code": c_BAD_REQUEST, "response": "invalid json"})
@@ -28,10 +27,10 @@ def create():
     about = params.get("about", None)
     isAnonymous = int(bool(params.get("isAnonymous")))
     if email:
-        # print "Creating user '{0}'".format(email)
         user = get_user_profile(email)
         code = c_OK
         if not user:
+            print "Creating user '{0}'".format(email)
             row_id = update_query(
                 "INSERT INTO `user` (`username`, `email`, `name`, `about`, `isAnonymous`) VALUES (%s, %s, %s, %s, %s)",
                 (username, email, name, about, isAnonymous),
@@ -64,7 +63,7 @@ def create():
 def detail():
     email = request.args.get("user", None)
     if email:
-        # print "Detailing user '{0}'".format(email)
+        print "Detailing user '{0}'".format(email)
         user = get_user_profile(email)
         code = c_OK
         if not user:
@@ -109,7 +108,7 @@ def update():
         "code": code,
     })
 
-
+# BUG: blocks transaction
 @user_blueprint.route("/follow/", methods=["POST"])
 def follow():
     try:
@@ -121,16 +120,26 @@ def follow():
     followee = params.get("followee", None)
     if follower and followee:
         # print "{0} following {1}".format(follower, followee)  # FOLLOWER FOLLOWS FOLLOWEE
-        update_query(
-            "INSERT INTO `follower` (`follower`, `followee`) VALUES (%s, %s)",
+        test_q = select_query(
+            "SELECT f.`follower`, f.`followee` FROM `follower` f WHERE f.`follower`=%s AND f.`followee`=%s",
             (follower, followee),
             verbose=False
         )
-        user = get_user_profile(follower)
-        code = c_OK
-        if not user:
-            user = "Not found"
-            code = c_NOT_FOUND
+        if len(test_q) == 0:
+            user = get_user_profile(follower)
+            if user:
+                update_query(
+                    "INSERT INTO `follower` (`follower`, `followee`) VALUES (%s, %s)",
+                    (follower, followee),
+                    verbose=False
+                )
+                code = c_OK
+            else:
+                user = "Not found"
+                code = c_NOT_FOUND
+        else:
+            user = "This pair already exists"
+            code = c_INVALID_REQUEST_PARAMS
     else:
         user = "Invalid request"
         code = c_INVALID_REQUEST_PARAMS

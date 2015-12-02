@@ -1,6 +1,7 @@
 __author__ = 'vladimir'
 
 import pymysql
+from pymysql import InternalError
 
 
 def get_connection():
@@ -14,10 +15,18 @@ def get_connection():
     )
 
 
+# InternalError: (1205, u'Lock wait timeout exceeded; try restarting transaction')
+
 def update_query(query, params=None, verbose=False):
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute(query, params)
+    try:
+        cursor.execute(query, params)
+    except InternalError as e:
+        # TODO: rollback
+        print "update_query InternalError: {0}".format(repr(e))
+        print "query: {0}\n".format(query % params), "="*50
+        return -1
     connection.commit()
     row_id = cursor.lastrowid
     amount = cursor.rowcount
@@ -31,7 +40,13 @@ def update_query(query, params=None, verbose=False):
 def select_query(query, params=None, verbose=False):
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute(query, params)
+    try:
+        cursor.execute(query, params)
+    except InternalError as e:
+        # TODO: rollback
+        print "select_query InternalError: {0}".format(repr(e))
+        print "query: {0}\n".format(query % params), "="*50
+        return None
     res = cursor.fetchall()
     cursor.close()
     connection.close()
